@@ -27,7 +27,6 @@ meses_pt = {
     "December": "Dezembro"
 }
 
-# Dicionario reverso ou indices para obter o número do mês
 meses_num = {
     "January": 1, "February": 2, "March": 3, "April": 4,
     "May": 5, "June": 6, "July": 7, "August": 8,
@@ -36,13 +35,20 @@ meses_num = {
 
 meses_ingles = list(meses_num.keys())
 
+# --- GESTÃO DE ESTADO (SESSION STATE) PARA UTILIZADOR E ESCALAS ---
+if "nome_utilizador" not in st.session_state:
+    st.session_state.nome_utilizador = "João Amaral"
+
+if "escala_dados" not in st.session_state:
+    st.session_state.escala_dados = {}
+
 # --- BARRA LATERAL: Configurações e Perfil ---
 with st.sidebar:
     st.markdown("### ⚙️ Configurações")
     st.markdown("---")
     
-    # Perfil / Nome
-    nome_utilizador = st.text_input("Nome do Utilizador", value="João Amaral")
+    # Campo dinâmico para editar o nome do utilizador na barra lateral
+    st.session_state.nome_utilizador = st.text_input("Nome do Utilizador", value=st.session_state.nome_utilizador)
     
     st.markdown("### Parâmetros Salariais")
     valor_hora = st.number_input("Valor da Hora Base (€)", value=7.50, step=0.25)
@@ -59,7 +65,7 @@ with st.sidebar:
 
 # --- CABEÇALHO PRINCIPAL ---
 st.markdown("## 🛡️ Gestor de Escala & Salário PRO")
-st.write(f"Olá, **{nome_utilizador}**! Gere e consulta o teu histórico e escalas mensais.")
+st.write(f"Olá, **{st.session_state.nome_utilizador}**! Gere e consulta o teu histórico e escalas mensais.")
 
 # Seleção de Ano e Mês Ativo
 col_ano, col_mes = st.columns(2)
@@ -79,10 +85,6 @@ num_mes = meses_num[mes_ativo_en]
 
 st.markdown("---")
 
-# --- GESTÃO DE ESTADO (SESSION STATE) PARA A ESCALA ---
-if "escala_dados" not in st.session_state:
-    st.session_state.escala_dados = {}
-
 # --- NAVEGAÇÃO POR ABAS ---
 tab1, tab2, tab3 = st.tabs(["📅 Gerar / Editar Mês", "✏️ Ajustes Pontuais", "📊 Resumo, Banco & Envio"])
 
@@ -93,7 +95,6 @@ with tab1:
     chave_mes = f"{ano_ativo}-{num_mes}"
     
     if st.button("🚀 Gerar Escala para este Mês", type="primary"):
-        # Obter número de dias do mês
         _, ultimo_dia = calendar.monthrange(ano_ativo, num_mes)
         
         lista_dias = []
@@ -104,7 +105,6 @@ with tab1:
             dia_sem_idx = data_atual.weekday()
             nome_dia_sem = dias_semana_pt[dia_sem_idx]
             
-            # Lógica adaptada: Seg/Ter noite, Sáb/Dom 12h, resto folga
             if dia_sem_idx in [0, 1]: # Seg, Ter
                 estado = "Trabalho (Noite)"
                 h = horas_padrao
@@ -182,11 +182,11 @@ with tab3:
         
     st.markdown("---")
     if st.button("📤 Copiar Resumo para WhatsApp"):
-        resumo_whatsapp = f"Resumo {mes_ativo_pt} {ano_ativo}:\nTotal Horas: {horas_mes}h\nLíquido Estimado: {total_liquido:.2f}€"
+        resumo_whatsapp = f"Resumo {mes_ativo_pt} {ano_ativo} ({st.session_state.nome_utilizador}):\nTotal Horas: {horas_mes}h\nLíquido Estimado: {total_liquido:.2f}€"
         st.code(resumo_whatsapp, language="text")
         st.success("Resumo pronto a copiar!")
 
 # Rodapé na barra lateral
 with st.sidebar:
     st.markdown("---")
-    st.caption("Gestor de Escala & Salário PRO v2.3")
+    st.caption("Gestor de Escala & Salário PRO v2.4")
