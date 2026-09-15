@@ -34,7 +34,7 @@ if "autenticado" not in st.session_state:
 if "utilizador_atual" not in st.session_state:
     st.session_state.utilizador_atual = None
 
-# Base de perfis guardados na sessão: { "Nome": {"pin": "1234", "valor_hora": 7.5, ...} }
+# Base de perfis guardados na sessão
 if "perfis_guardados" not in st.session_state:
     st.session_state.perfis_guardados = {
         "João Amaral": {
@@ -104,6 +104,7 @@ if not st.session_state.autenticado:
                 elif novo_nome in st.session_state.perfis_guardados:
                     st.warning("Esse nome já existe. Usa a aba 'Entrar' ou escolhe outro nome.")
                 else:
+                    # Criação limpa com escala_dados estritamente vazia
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
                         "valor_hora": reg_v_hora,
@@ -349,4 +350,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.1 (Com PIN Local)")
+        st.caption("Gestor de Escala PRO v3.2 (Com PIN e Isolamento Total)")
