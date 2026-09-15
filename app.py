@@ -4,7 +4,7 @@ import streamlit as st
 
 # Configuração da Página
 st.set_page_config(
-    page_title="Gestor de Escalas SPDE", page_icon="🛡️", layout="centered"
+    page_title="Gestor de Escalas & Salários", page_icon="🛡️", layout="centered"
 )
 
 # Estilo visual limpo
@@ -15,7 +15,7 @@ st.markdown(
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     </style>
 """,
-        unsafe_allow_html=True,
+    unsafe_allow_html=True,
 )
 
 # Inicializar Base de Dados de Perfis na Sessão
@@ -27,6 +27,16 @@ if "perfis" not in st.session_state:
             "desc_ss": 11.0,
             "desc_irs": 4.23,
             "turnos": [],
+            # Configuração de turnos personalizada (Dias da semana: 0=Seg, 1=Ter, 2=Qua, 3=Qui, 4=Sex, 5=Sáb, 6=Dom)
+            "padrao_turnos": {
+                0: {"ativo": True, "nome": "Noturno", "horas": 8.0},
+                1: {"ativo": True, "nome": "Noturno", "horas": 8.0},
+                2: {"ativo": False, "nome": "Folga", "horas": 0.0},
+                3: {"ativo": True, "nome": "Noturno", "horas": 8.0},
+                4: {"ativo": False, "nome": "Folga", "horas": 0.0},
+                5: {"ativo": True, "nome": "Fim de Semana", "horas": 12.0},
+                6: {"ativo": True, "nome": "Fim de Semana", "horas": 12.0},
+            },
         }
     }
 
@@ -34,7 +44,7 @@ if "utilizador_atual" not in st.session_state:
     st.session_state.utilizador_atual = None
 
 # Cabeçalho Principal
-st.title("🛡️ Gestor de Escala & Salário - SPDE")
+st.title("🛡️ Gestor de Escala & Salário")
 
 # Sistema de Autenticação / Seleção de Perfil
 if st.session_state.utilizador_atual is None:
@@ -88,10 +98,18 @@ if st.session_state.utilizador_atual is None:
             else:
                 st.session_state.perfis[novo_nome] = {
                     "pin": novo_pin,
-                    "valor_hora": 5.87,
+                    "valor_hora": 6.00,
                     "desc_ss": 11.0,
-                    "desc_irs": 4.23,
+                    "desc_irs": 0.0,
                     "turnos": [],
+                    "padrao_turnos": {
+                        d: {
+                            "ativo": False,
+                            "nome": "Turno Normal",
+                            "horas": 8.0,
+                        }
+                        for d in range(7)
+                    },
                 }
                 st.session_state.utilizador_atual = novo_nome
                 st.success(
@@ -103,7 +121,14 @@ else:
     # Utilizador Autenticado - Área Principal
     perfil = st.session_state.perfis[st.session_state.utilizador_atual]
 
-    # Barra Lateral - Configurações Salariais do Utilizador Atual
+    # Garantir compatibilidade com perfis antigos sem padrão de turnos
+    if "padrao_turnos" not in perfil:
+        perfil["padrao_turnos"] = {
+            d: {"ativo": False, "nome": "Turno Normal", "horas": 8.0}
+            for d in range(7)
+        }
+
+    # Barra Lateral - Configurações Salariais e de Padrão
     st.sidebar.markdown(f"## 👤 Sessão: {st.session_state.utilizador_atual}")
     if st.sidebar.button("🚪 Terminar Sessão"):
         st.session_state.utilizador_atual = None
@@ -136,8 +161,34 @@ else:
         / 100
     )
 
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## 🕒 Configurar Padrão Semanal")
+    st.sidebar.markdown("Define quais os dias em que trabalhas e as horas.")
+
+    dias_semana_nrs = [
+        ("Segunda-feira", 0),
+        ("Terça-feira", 1),
+        ("Quarta-feira", 2),
+        ("Quinta-feira", 3),
+        ("Sexta-feira", 4),
+        ("Sábado", 5),
+        ("Domingo", 6),
+    ]
+
+    for nome_dia, idx in dias_semana_nrs:
+        with st.sidebar.expander(nome_dia):
+            ativo = st.checkbox("Trabalha neste dia?", value=perfil["padrao_turnos"][idx]["ativo"], key=f"ativo_{idx}")
+            perfil["padrao_turnos"][idx]["ativo"] = ativo
+            if ativo:
+                perfil["padrao_turnos"][idx]["nome"] = st.text_input(
+                    "Nome do Turno:", value=perfil["padrao_turnos"][idx]["nome"], key=f"nome_turno_{idx}"
+                )
+                perfil["padrao_turnos"][idx]["horas"] = st.number_input(
+                    "Nº de Horas:", min_value=0.5, max_value=24.0, value=float(perfil["padrao_turnos"][idx]["horas"]), step=0.5, key=f"horas_{idx}"
+                )
+
     st.markdown(
-        f"Olá, **{st.session_state.utilizador_atual}**! Gere a tua escala mensal e calcula os teus ganhos com total privacidade."
+        f"Olá, **{st.session_state.utilizador_atual}**! Gere a tua escala mensal personalizada e calcula os teus ganhos."
     )
 
     # Abas da Aplicação
@@ -148,7 +199,7 @@ else:
     with aba1:
         st.markdown("### 🗓️ Gerar Escala Mensal Automática")
         st.markdown(
-            "Aplica o teu padrão fixo: **Segundas, Terças e Quintas (23h-07h = 8h)** e **Sábados e Domingos (07h-19h = 12h)**."
+            "A aplicação vai aplicar o padrão semanal configurado na barra lateral para o mês selecionado."
         )
 
         col1, col2 = st.columns(2)
@@ -168,25 +219,15 @@ else:
 
             for dia in range(1, num_dias + 1):
                 data_atual = datetime.date(ano_sel, mes_sel, dia)
-                dia_semana = data_atual.weekday()  # 0=Seg, 1=Ter, ..., 6=Dom
+                dia_semana = data_atual.weekday()  # 0=Seg ... 6=Dom
 
-                # Segunda (0), Terça (1), Quinta (3) -> Noturno (8h)
-                if dia_semana in [0, 1, 3]:
+                config_dia = perfil["padrao_turnos"][dia_semana]
+                if config_dia["ativo"]:
                     perfil["turnos"].append(
                         {
                             "data": data_atual.strftime("%Y-%m-%d"),
-                            "tipo": "Noturno (8h)",
-                            "horas": 8.0,
-                            "valor_hora": perfil["valor_hora"],
-                        }
-                    )
-                # Sábado (5), Domingo (6) -> Fim de Semana (12h)
-                elif dia_semana in [5, 6]:
-                    perfil["turnos"].append(
-                        {
-                            "data": data_atual.strftime("%Y-%m-%d"),
-                            "tipo": "Fim de Semana (12h)",
-                            "horas": 12.0,
+                            "tipo": config_dia["nome"],
+                            "horas": config_dia["horas"],
                             "valor_hora": perfil["valor_hora"],
                         }
                     )
@@ -203,8 +244,10 @@ else:
             # Calcular totais
             total_horas = sum(t["horas"] for t in perfil["turnos"])
             total_bruto = sum(
-                t["horas"] * perfil["valor_hora"] for t in perfil["turnos"]
+                t["horas"] * perfil["valor_hora"] for t.get("horas", 0) for t in perfil["turnos"] if isinstance(t, dict)
             )
+            # Correção simples para soma de horas/valor bruto
+            total_bruto = sum(t["horas"] * perfil["valor_hora"] for t in perfil["turnos"])
 
             valor_ss = total_bruto * perfil["desc_ss"]
             valor_irs = total_bruto * perfil["desc_irs"]
@@ -234,5 +277,5 @@ else:
                 st.rerun()
         else:
             st.info(
-                "Ainda não tens turnos gerados. Vai à aba 'Geração Automática de Escala' e clica no botão para criar o mês!"
+                "Ainda não tens turnos gerados. Configura o teu padrão na barra lateral, vai à aba 'Geração Automática de Escala' e clica no botão!"
             )
