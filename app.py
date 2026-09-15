@@ -34,7 +34,6 @@ if "autenticado" not in st.session_state:
 if "utilizador_atual" not in st.session_state:
     st.session_state.utilizador_atual = None
 
-# Base de perfis limpa (sem nenhum perfil pré-criado)
 if "perfis_guardados" not in st.session_state:
     st.session_state.perfis_guardados = {}
 
@@ -44,7 +43,6 @@ if not st.session_state.autenticado:
     st.markdown("## 🛡️ Gestor de Escala PRO")
     st.write("Acede à tua conta ou cria um novo perfil.")
     
-    # Se ainda não houver nenhum perfil criado, força a abertura logo na aba de registo
     nomes_existentes = list(st.session_state.perfis_guardados.keys())
     
     if not nomes_existentes:
@@ -98,7 +96,7 @@ if not st.session_state.autenticado:
                 elif len(novo_pin) != 4 or not novo_pin.isdigit():
                     st.warning("O PIN deve conter exatamente 4 dígitos numéricos.")
                 elif novo_nome in st.session_state.perfis_guardados:
-                    st.warning("Esse nome já existe. Usa a aba 'Entrar' ou escolhe outro nome.")
+                    st.warning(" Esse nome já existe na memória. Clica no botão de limpeza na barra lateral (se visível) ou escolhe outro nome.")
                 else:
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
@@ -106,12 +104,19 @@ if not st.session_state.autenticado:
                         "subs_refeicao": reg_sub,
                         "taxa_irs": reg_irs,
                         "taxa_ss": reg_ss,
-                        "escala_dados": {}  # Garante escala limpa
+                        "escala_dados": {}  # Força dicionário de escala estritamente vazio
                     }
                     st.session_state.autenticado = True
                     st.session_state.utilizador_atual = novo_nome
                     st.success("Perfil criado com sucesso!")
                     st.rerun()
+
+    # Opção de emergência fora do login se houver dados presos na cache
+    if nomes_existentes:
+        st.markdown("---")
+        if st.button("🗑️ Limpar Todos os Dados da Aplicação", use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
 
 else:
     # --- 2. APLICAÇÃO PRINCIPAL (Sessão Ativa) ---
@@ -151,6 +156,14 @@ else:
         
         st.markdown("---")
         if st.button("🔒 Bloquear / Sair da Conta", use_container_width=True):
+            st.session_state.autenticado = False
+            st.session_state.utilizador_atual = None
+            st.rerun()
+            
+        st.markdown("---")
+        if st.button("🗑️ Apagar Conta e Reiniciar", use_container_width=True):
+            if nome_u in st.session_state.perfis_guardados:
+                del st.session_state.perfis_guardados[nome_u]
             st.session_state.autenticado = False
             st.session_state.utilizador_atual = None
             st.rerun()
@@ -355,4 +368,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.6 (Limpo)")
+        st.caption("Gestor de Escala PRO v3.7 (Com Limpeza Total)")
