@@ -82,11 +82,11 @@ if not st.session_state.autenticado:
             
             c1, c2 = st.columns(2)
             with c1:
-                reg_v_hora = st.number_input("Valor Hora (€)", value=7.50, step=0.25)
-                reg_irs = st.number_input("IRS (%)", value=13.0, step=0.5)
+                reg_v_hora = st.number_input("Valor Hora (€)", value=0.0, step=0.25, format="%.2f")
+                reg_irs = st.number_input("IRS (%)", value=0.0, step=0.5, format="%.1f")
             with c2:
-                reg_sub = st.number_input("Subs. Refeição (€)", value=6.00, step=0.50)
-                reg_ss = st.number_input("Seg. Social (%)", value=11.0, step=0.0)
+                reg_sub = st.number_input("Subs. Refeição (€)", value=0.0, step=0.50, format="%.2f")
+                reg_ss = st.number_input("Seg. Social (%)", value=0.0, step=0.0, format="%.1f")
                 
             btn_criar = st.form_submit_button("✨ Registar e Entrar", use_container_width=True)
             
@@ -96,7 +96,7 @@ if not st.session_state.autenticado:
                 elif len(novo_pin) != 4 or not novo_pin.isdigit():
                     st.warning("O PIN deve conter exatamente 4 dígitos numéricos.")
                 elif novo_nome in st.session_state.perfis_guardados:
-                    st.warning(" Esse nome já existe na memória. Clica no botão de limpeza na barra lateral (se visível) ou escolhe outro nome.")
+                    st.warning("Esse nome já existe na memória. Escolhe outro nome.")
                 else:
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
@@ -104,14 +104,13 @@ if not st.session_state.autenticado:
                         "subs_refeicao": reg_sub,
                         "taxa_irs": reg_irs,
                         "taxa_ss": reg_ss,
-                        "escala_dados": {}  # Força dicionário de escala estritamente vazio
+                        "escala_dados": {}  # Garante escala estritamente vazia
                     }
                     st.session_state.autenticado = True
                     st.session_state.utilizador_atual = novo_nome
                     st.success("Perfil criado com sucesso!")
                     st.rerun()
 
-    # Opção de emergência fora do login se houver dados presos na cache
     if nomes_existentes:
         st.markdown("---")
         if st.button("🗑️ Limpar Todos os Dados da Aplicação", use_container_width=True):
@@ -143,11 +142,11 @@ else:
         st.markdown(f"### 👤 Utilizador: {nome_u}")
         st.markdown("### ⚙️ Definições")
         
-        novo_v_hora = st.number_input("Valor Hora Base (€)", value=v_hora, step=0.25)
-        novo_s_refeicao = st.number_input("Subs. Refeição (€)", value=s_refeicao, step=0.50)
+        novo_v_hora = st.number_input("Valor Hora Base (€)", value=v_hora, step=0.25, format="%.2f")
+        novo_s_refeicao = st.number_input("Subs. Refeição (€)", value=s_refeicao, step=0.50, format="%.2f")
         
-        novo_t_irs = st.number_input("IRS (%)", value=t_irs, step=0.5)
-        novo_t_ss = st.number_input("Segurança Social (%)", value=t_ss, step=0.0)
+        novo_t_irs = st.number_input("IRS (%)", value=t_irs, step=0.5, format="%.1f")
+        novo_t_ss = st.number_input("Segurança Social (%)", value=t_ss, step=0.0, format="%.1f")
         
         dados_perfil["valor_hora"] = novo_v_hora
         dados_perfil["subs_refeicao"] = novo_s_refeicao
@@ -230,7 +229,7 @@ else:
             st.rerun()
 
         st.markdown("#### Histórico do Mês")
-        if chave_mes in escala_dados:
+        if chave_mes in escala_dados and not escala_dados[chave_mes].empty:
             df_atual = escala_dados[chave_mes]
             df_editado = st.data_editor(
                 df_atual,
@@ -240,7 +239,7 @@ else:
             )
             escala_dados[chave_mes] = df_editado
         else:
-            st.info("Clica em 'Gerar Escala Automática' para preencher o mês.")
+            st.info("Ainda não tens escala gerada para este mês. Clica em 'Gerar Escala Automática' acima para preencher.")
 
     with tab2:
         st.markdown("### ✏️ Ajustes Pontuais & Períodos Automáticos")
@@ -260,7 +259,7 @@ else:
             dia_fim = st.number_input("Dia de Fim (ou igual ao de início)", min_value=1, max_value=ultimo_dia_mes, value=1)
             
         if st.button("⚡ Aplicar ao Período Selecionado", use_container_width=True):
-            if chave_mes not in escala_dados:
+            if chave_mes not in escala_dados or escala_dados[chave_mes].empty:
                 st.warning("Primeiro deves gerar a escala do mês na aba 'Escala'.")
             else:
                 df_temp = escala_dados[chave_mes]
@@ -285,7 +284,7 @@ else:
     with tab3:
         st.markdown(f"### 📊 Resumo do Mês ({mes_ativo_pt} {ano_ativo})")
         
-        if chave_mes in escala_dados:
+        if chave_mes in escala_dados and not escala_dados[chave_mes].empty:
             df_res = escala_dados[chave_mes]
             mask_trab = df_res["Estado"].str.contains("Trabalho", na=False)
             horas_mes = df_res[mask_trab]["Horas"].sum()
@@ -322,6 +321,8 @@ else:
         total_liquido_ano = 0.0
         
         for k, df_m in escala_dados.items():
+            if df_m.empty:
+                continue
             partes = k.split("-")
             if len(partes) == 2 and int(partes[0]) == ano_ativo:
                 m_num = int(partes[1])
@@ -368,4 +369,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.7 (Com Limpeza Total)")
+        st.caption("Gestor de Escala PRO v3.8 (100% Limpo)")
