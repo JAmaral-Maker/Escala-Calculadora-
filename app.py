@@ -104,14 +104,14 @@ if not st.session_state.autenticado:
                 elif novo_nome in st.session_state.perfis_guardados:
                     st.warning("Esse nome já existe. Usa a aba 'Entrar' ou escolhe outro nome.")
                 else:
-                    # Criação de um novo perfil com escala totalmente vazia e independente
+                    # Garantir que um novo perfil nasce rigorosamente com dicionário vazio
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
                         "valor_hora": reg_v_hora,
                         "subs_refeicao": reg_sub,
                         "taxa_irs": reg_irs,
                         "taxa_ss": reg_ss,
-                        "escala_dados": {}
+                        "escala_dados": {}  # Garante escala limpa
                     }
                     st.session_state.autenticado = True
                     st.session_state.utilizador_atual = novo_nome
@@ -121,6 +121,13 @@ if not st.session_state.autenticado:
 else:
     # --- 2. APLICAÇÃO PRINCIPAL (Sessão Ativa) ---
     nome_u = st.session_state.utilizador_atual
+    
+    # Segurança extra: se o utilizador atual não existir por algum motivo, reseta
+    if nome_u not in st.session_state.perfis_guardados:
+        st.session_state.autenticado = False
+        st.session_state.utilizador_atual = None
+        st.rerun()
+
     dados_perfil = st.session_state.perfis_guardados[nome_u]
 
     v_hora = dados_perfil["valor_hora"]
@@ -201,7 +208,6 @@ else:
                     estado = "Folga"
                     h = 0.0
                 
-                # Formatação rigorosa de data DD/MM/AAAA para evitar conflitos visuais
                 data_formatada = f"{dia:02d}/{num_mes:02d}/{ano_ativo}"
                 
                 lista_dias.append({
@@ -217,6 +223,7 @@ else:
             st.rerun()
 
         st.markdown("#### Histórico do Mês")
+        # Se for um utilizador novo e ainda não gerou escala para este mês, mostra explicitamente a mensagem limpa
         if chave_mes in escala_dados:
             df_atual = escala_dados[chave_mes]
             df_editado = st.data_editor(
@@ -355,4 +362,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.4 (Correção Data/Cache)")
+        st.caption("Gestor de Escala PRO v3.5 (Isolamento Definitivo)")
