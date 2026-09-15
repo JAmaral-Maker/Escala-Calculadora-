@@ -104,14 +104,14 @@ if not st.session_state.autenticado:
                 elif novo_nome in st.session_state.perfis_guardados:
                     st.warning("Esse nome já existe. Usa a aba 'Entrar' ou escolhe outro nome.")
                 else:
-                    # Criação limpa com escala_dados estritamente vazia
+                    # Garantir isolamento absoluto com um dicionário de escala totalmente vazio
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
                         "valor_hora": reg_v_hora,
                         "subs_refeicao": reg_sub,
                         "taxa_irs": reg_irs,
                         "taxa_ss": reg_ss,
-                        "escala_dados": {}
+                        "escala_dados": {}  # <-- Vazio por defeito
                     }
                     st.session_state.autenticado = True
                     st.session_state.utilizador_atual = novo_nome
@@ -127,6 +127,10 @@ else:
     s_refeicao = dados_perfil["subs_refeicao"]
     t_irs = dados_perfil["taxa_irs"]
     t_ss = dados_perfil["taxa_ss"]
+    
+    # Assegurar explicitamente que cada utilizador usa apenas o seu próprio dicionário de escalas
+    if "escala_dados" not in dados_perfil:
+        dados_perfil["escala_dados"] = {}
     escala_dados = dados_perfil["escala_dados"]
 
     # --- BARRA LATERAL ---
@@ -218,7 +222,7 @@ else:
                 df_atual,
                 num_rows="fixed",
                 use_container_width=True,
-                key=f"editor_{chave_mes}"
+                key=f"editor_{chave_mes}_{nome_u}"
             )
             escala_dados[chave_mes] = df_editado
         else:
@@ -350,4 +354,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.2 (Com PIN e Isolamento Total)")
+        st.caption("Gestor de Escala PRO v3.3 (Isolamento Perfeito)")
