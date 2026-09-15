@@ -34,18 +34,9 @@ if "autenticado" not in st.session_state:
 if "utilizador_atual" not in st.session_state:
     st.session_state.utilizador_atual = None
 
-# Base de perfis guardados na sessão
+# Base de perfis limpa (sem nenhum perfil pré-criado)
 if "perfis_guardados" not in st.session_state:
-    st.session_state.perfis_guardados = {
-        "João Amaral": {
-            "pin": "1994",
-            "valor_hora": 7.50,
-            "subs_refeicao": 6.00,
-            "taxa_irs": 13.0,
-            "taxa_ss": 11.0,
-            "escala_dados": {}
-        }
-    }
+    st.session_state.perfis_guardados = {}
 
 
 # --- 1. ECRÃ DE LOGIN / REGISTO POR PIN ---
@@ -53,32 +44,37 @@ if not st.session_state.autenticado:
     st.markdown("## 🛡️ Gestor de Escala PRO")
     st.write("Acede à tua conta ou cria um novo perfil.")
     
-    aba_login, aba_registo = st.tabs(["🔑 Entrar", "➕ Criar Novo Perfil"])
+    # Se ainda não houver nenhum perfil criado, força a abertura logo na aba de registo
+    nomes_existentes = list(st.session_state.perfis_guardados.keys())
+    
+    if not nomes_existentes:
+        st.info("👋 Bem-vindo! Como ainda não existem contas criadas, começa por registar o teu perfil.")
+        aba_registo, aba_login = st.tabs(["➕ Criar Novo Perfil", "🔑 Entrar"])
+    else:
+        aba_login, aba_registo = st.tabs(["🔑 Entrar", "➕ Criar Novo Perfil"])
     
     with aba_login:
-        with st.form("form_login"):
-            nomes_existentes = list(st.session_state.perfis_guardados.keys())
-            if nomes_existentes:
+        if nomes_existentes:
+            with st.form("form_login"):
                 nome_escolhido = st.selectbox("Seleciona o teu Nome", options=nomes_existentes)
-            else:
-                nome_escolhido = st.text_input("Nome de Utilizador")
+                pin_input = st.text_input("PIN de Acesso (4 dígitos)", type="password", max_chars=4)
                 
-            pin_input = st.text_input("PIN de Acesso (4 dígitos)", type="password", max_chars=4)
-            
-            btn_login = st.form_submit_button("🔓 Entrar", type="primary", use_container_width=True)
-            
-            if btn_login:
-                if nome_escolhido in st.session_state.perfis_guardados:
-                    perfil = st.session_state.perfis_guardados[nome_escolhido]
-                    if perfil["pin"] == pin_input:
-                        st.session_state.autenticado = True
-                        st.session_state.utilizador_atual = nome_escolhido
-                        st.success("Login efetuado com sucesso!")
-                        st.rerun()
+                btn_login = st.form_submit_button("🔓 Entrar", type="primary", use_container_width=True)
+                
+                if btn_login:
+                    if nome_escolhido in st.session_state.perfis_guardados:
+                        perfil = st.session_state.perfis_guardados[nome_escolhido]
+                        if perfil["pin"] == pin_input:
+                            st.session_state.autenticado = True
+                            st.session_state.utilizador_atual = nome_escolhido
+                            st.success("Login efetuado com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("PIN incorreto.")
                     else:
-                        st.error("PIN incorreto.")
-                else:
-                    st.error("Utilizador não encontrado.")
+                        st.error("Utilizador não encontrado.")
+        else:
+            st.warning("Ainda não existem utilizadores registados. Cria uma conta na aba ao lado.")
 
     with aba_registo:
         with st.form("form_registo"):
@@ -104,7 +100,6 @@ if not st.session_state.autenticado:
                 elif novo_nome in st.session_state.perfis_guardados:
                     st.warning("Esse nome já existe. Usa a aba 'Entrar' ou escolhe outro nome.")
                 else:
-                    # Garantir que um novo perfil nasce rigorosamente com dicionário vazio
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
                         "valor_hora": reg_v_hora,
@@ -122,7 +117,6 @@ else:
     # --- 2. APLICAÇÃO PRINCIPAL (Sessão Ativa) ---
     nome_u = st.session_state.utilizador_atual
     
-    # Segurança extra: se o utilizador atual não existir por algum motivo, reseta
     if nome_u not in st.session_state.perfis_guardados:
         st.session_state.autenticado = False
         st.session_state.utilizador_atual = None
@@ -223,7 +217,6 @@ else:
             st.rerun()
 
         st.markdown("#### Histórico do Mês")
-        # Se for um utilizador novo e ainda não gerou escala para este mês, mostra explicitamente a mensagem limpa
         if chave_mes in escala_dados:
             df_atual = escala_dados[chave_mes]
             df_editado = st.data_editor(
@@ -362,4 +355,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.5 (Isolamento Definitivo)")
+        st.caption("Gestor de Escala PRO v3.6 (Limpo)")
