@@ -18,6 +18,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Lista de Feriados Nacionais Fixos em Portugal (Mês-Dia)
+FERIADOS_FIXOS = {
+    (1, 1): "Ano Novo",
+    (4, 25): "Dia da Liberdade",
+    (5, 1): "Dia do Trabalhador",
+    (6, 10): "Dia de Portugal",
+    (8, 15): "Assunção de Nossa Senhora",
+    (10, 5): "Implantação da República",
+    (11, 1): "Todos os Santos",
+    (12, 1): "Restauração da Independência",
+    (12, 8): "Imaculada Conceição",
+    (12, 25): "Natal"
+}
+
+def is_feriado(data_obj):
+    return (data_obj.month, data_obj.day) in FERIADOS_FIXOS
+
 # Inicializar Base de Dados de Perfis na Sessão (Memória Local)
 if "perfis" not in st.session_state:
     st.session_state.perfis = {
@@ -52,7 +69,6 @@ if st.session_state.utilizador_atual is None:
     st.markdown("Identifica-te com o teu PIN ou cria um novo perfil.")
 
     modo = st.radio("Escolhe uma opção:", ["Entrar na minha conta", "Criar novo perfil"])
-
     lista_nomes = list(st.session_state.perfis.keys())
 
     if modo == "Entrar na minha conta":
@@ -99,7 +115,6 @@ if st.session_state.utilizador_atual is None:
                 st.rerun()
 
 else:
-    # Utilizador Autenticado - Área Principal
     perfil = st.session_state.perfis[st.session_state.utilizador_atual]
 
     if "subs_refeicao" not in perfil:
@@ -124,21 +139,16 @@ else:
     perfil["subs_refeicao"] = st.sidebar.number_input(
         "Subsídio de Refeição / Dia (€):", min_value=0.0, value=float(perfil["subs_refeicao"]), step=0.25
     )
-    perfil["desc_ss"] = (
-        st.sidebar.slider(
-            "Desconto Segurança Social (%):", min_value=0.0, max_value=20.0, value=float(perfil["desc_ss"])
-        )
+    perfil["desc_ss"] = st.sidebar.slider(
+        "Desconto Segurança Social (%):", min_value=0.0, max_value=20.0, value=float(perfil["desc_ss"])
     )
-    perfil["desc_irs"] = (
-        st.sidebar.slider(
-            "Desconto IRS (%):", min_value=0.0, max_value=30.0, value=float(perfil["desc_irs"])
-        )
+    perfil["desc_irs"] = st.sidebar.slider(
+        "Desconto IRS (%):", min_value=0.0, max_value=30.0, value=float(perfil["desc_irs"])
     )
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("## 🕒 Configurar Padrão Semanal & Extras")
-    st.sidebar.markdown("Define dias, horas e adicionais por hora (ex: noites/fins de semana).")
-
+    
     dias_semana_nrs = [
         ("Segunda-feira", 0), ("Terça-feira", 1), ("Quarta-feira", 2),
         ("Quinta-feira", 3), ("Sexta-feira", 4), ("Sábado", 5), ("Domingo", 6)
@@ -156,18 +166,16 @@ else:
                     "Nº de Horas:", min_value=0.5, max_value=24.0, value=float(perfil["padrao_turnos"][idx]["horas"]), step=0.5, key=f"horas_{idx}"
                 )
                 perfil["padrao_turnos"][idx]["valor_extra_hora"] = st.number_input(
-                    "Adicional por hora (€/h extra):", min_value=0.0, value=float(perfil["padrao_turnos"][idx].get("valor_extra_hora", 0.0)), step=0.10, key=f"extra_{idx}", help="Valor a somar à hora base para este turno (ex: noturno ou fim de semana)"
+                    "Adicional por hora (€/h extra):", min_value=0.0, value=float(perfil["padrao_turnos"][idx].get("valor_extra_hora", 0.0)), step=0.10, key=f"extra_{idx}"
                 )
 
-    st.markdown(f"Olá, **{st.session_state.utilizador_atual}**! Gere a tua escala mensal avançada e calcula os teus ganhos.")
+    st.markdown(f"Olá, **{st.session_state.utilizador_atual}**! Gere e ajusta a tua escala mensal.")
 
     # Abas da Aplicação
-    aba1, aba2 = st.tabs(["📅 Geração Automática de Escala", "📊 Resumo & Contabilidade"])
+    aba1, aba2, aba3 = st.tabs(["📅 Gerar Escala", "✏️ Ajustes Pontuais", "📊 Resumo & Partilha"])
 
     with aba1:
-        st.markdown("### 🗓️ Gerar Escala Mensal Automática")
-        st.markdown("A aplicação vai aplicar o padrão semanal configurado na barra lateral para o mês selecionado.")
-
+        st.markdown("### 🗓️ Geração Automática de Escala")
         col1, col2 = st.columns(2)
         with col1:
             ano_sel = st.selectbox("Ano:", [2026, 2027], index=0)
@@ -181,12 +189,18 @@ else:
             for dia in range(1, num_dias + 1):
                 data_atual = datetime.date(ano_sel, mes_sel, dia)
                 dia_semana = data_atual.weekday()
-
                 config_dia = perfil["padrao_turnos"][dia_semana]
+                
+                # Detetar se é feriado nacional
+                feriado_nome = FERIADOS_FIXOS.get((data_atual.month, data_atual.day), None)
+                tipo_turno = config_dia["nome"]
+                if feriado_nome:
+                    tipo_turno = f"{tipo_turno} (Feriado: {feriado_nome})"
+
                 if config_dia["ativo"]:
                     perfil["turnos"].append({
                         "data": data_atual.strftime("%Y-%m-%d"),
-                        "tipo": config_dia["nome"],
+                        "tipo": tipo_turno,
                         "horas": config_dia["horas"],
                         "valor_hora_efetivo": perfil["valor_hora"] + config_dia.get("valor_extra_hora", 0.0),
                         "subs_refeicao": perfil["subs_refeicao"]
@@ -196,18 +210,60 @@ else:
             st.rerun()
 
     with aba2:
-        st.markdown("### 📋 Resumo dos Turnos e Salário")
+        st.markdown("### ✏️ Adicionar ou Ajustar Turnos Pontuais")
+        st.markdown("Precisas de adicionar um turno extra ou remover um dia de trabalho? Podes fazê-lo aqui.")
+
+        if perfil["turnos"]:
+            with st.form("form_adicionar_turno"):
+                col_d, col_t = st.columns(2)
+                with col_d:
+                    data_nova = st.date_input("Data do Turno:")
+                with col_t:
+                    nome_novo = st.text_input("Nome do Turno / Motivo:", value="Turno Extra")
+                
+                col_h, col_v = st.columns(2)
+                with col_h:
+                    horas_novas = st.number_input("Nº de Horas:", min_value=0.5, max_value=24.0, value=8.0, step=0.5)
+                with col_v:
+                    extra_novo = st.number_input("Adicional por hora (€ extra):", min_value=0.0, value=0.0, step=0.10)
+
+                btn_add = st.form_submit_button("➕ Adicionar/Atualizar este Dia")
+                if btn_add:
+                    data_str = data_nova.strftime("%Y-%m-%d")
+                    # Remover se já existir registo nesse dia para substituir
+                    perfil["turnos"] = [t for t in perfil["turnos"] if t["data"] != data_str]
+                    perfil["turnos"].append({
+                        "data": data_str,
+                        "tipo": nome_novo,
+                        "horas": horas_novas,
+                        "valor_hora_efetivo": perfil["valor_hora"] + extra_novo,
+                        "subs_refeicao": perfil["subs_refeicao"]
+                    })
+                    # Reordenar por data
+                    perfil["turnos"] = sorted(perfil["turnos"], key=lambda x: x["data"])
+                    st.success(f"Turno para o dia {data_str} guardado com sucesso!")
+                    st.rerun()
+
+            st.markdown("---")
+            st.markdown("#### Remover um Dia Específico:")
+            datas_existentes = [t["data"] for t in perfil["turnos"]]
+            data_remover = st.selectbox("Seleciona a data a apagar da escala:", datas_existentes)
+            if st.button("🗑️ Apagar Turno Selecionado"):
+                perfil["turnos"] = [t for t in perfil["turnos"] if t["data"] != data_remover]
+                st.success(f"Turno do dia {data_remover} removido.")
+                st.rerun()
+        else:
+            st.info("Gera primeiro uma escala na aba 'Gerar Escala' para poderes fazer ajustes pontuais.")
+
+    with aba3:
+        st.markdown("### 📊 Resumo, Contabilidade & Partilha")
 
         if perfil["turnos"]:
             total_horas = sum(t["horas"] for t in perfil["turnos"])
-            
-            # Cálculo de vencimento base/turnos com os extras aplicados por turno
             total_bruto_vencimento = sum(t["horas"] * t.get("valor_hora_efetivo", perfil["valor_hora"]) for t in perfil["turnos"])
             
-            # Subsídio de refeição total
             total_dias_trabalho = len(perfil["turnos"])
             total_subs_refeicao = total_dias_trabalho * perfil["subs_refeicao"]
-            
             total_bruto_global = total_bruto_vencimento + total_subs_refeicao
 
             taxa_ss = perfil["desc_ss"] / 100.0
@@ -230,6 +286,17 @@ else:
             st.write(f"• IRS ({(perfil['desc_irs']):.2f}%): -{valor_irs:.2f} €")
 
             st.markdown("---")
+            st.markdown("#### 📱 Copiar Resumo para WhatsApp / Mensagem")
+            
+            texto_whatsapp = f"🛡️ *Resumo de Escala & Salário* ({st.session_state.utilizador_atual})\n"
+            texto_whatsapp += f"• Total de Dias: {total_dias_trabalho}\n"
+            texto_whatsapp += f"• Total de Horas: {total_horas:.1f}h\n"
+            texto_whatsapp += f"• Total Bruto: {total_bruto_global:.2f}€\n"
+            texto_whatsapp += f"• Total Líquido Estimado: {total_liquido:.2f}€"
+
+            st.text_area("Copia o texto abaixo para enviar para o telemóvel ou chat:", value=texto_whatsapp, height=120)
+
+            st.markdown("---")
             st.markdown("#### Lista Detalhada de Turnos:")
             st.dataframe(perfil["turnos"], use_container_width=True)
 
@@ -237,4 +304,4 @@ else:
                 perfil["turnos"] = []
                 st.rerun()
         else:
-            st.info("Ainda não tens turnos gerados. Configura o teu padrão na barra lateral, vai à aba 'Geração Automática de Escala' e clica no botão!")
+            st.info("Ainda não tens turnos gerados.")
