@@ -194,23 +194,23 @@ else:
     with tab1:
         st.markdown(f"### 🗓️ Escala de {mes_ativo_pt} {ano_ativo}")
         
-        # PAINEL DE CONFIGURAÇÃO DE TURNOS PERSONALIZADOS DO UTILIZADOR
+        # PAINEL DE CONFIGURAÇÃO TOTALMENTE LIMPO POR DEFEITO
         with st.expander("⚙️ Configurar os teus Dias e Horários de Trabalho", expanded=False):
-            st.write("Define quais os dias da semana em que trabalhas por defeito e quantas horas fazes:")
+            st.write("Seleciona os dias em que trabalhas e define os respetivos turnos:")
             
             dias_semana_lista = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
             
-            # Seleção individual por dia da semana
             config_dias = {}
             for d in dias_semana_lista:
                 st.markdown(f"**{d}**")
-                c_trab = st.checkbox(f"Trabalha à {d}?", value=(d in ["Segunda", "Terça", "Sábado", "Domingo"]), key=f"chk_{d}")
+                # value=False garante que começa tudo desmarcado
+                c_trab = st.checkbox(f"Trabalha à {d}?", value=False, key=f"chk_{d}")
                 if c_trab:
                     col_t1, col_t2 = st.columns(2)
                     with col_t1:
-                        t_nome = st.text_input(f"Nome do Turno ({d})", value="Trabalho (Noite)" if d in ["Segunda", "Terça"] else "Trabalho (FDS)", key=f"nome_{d}")
+                        t_nome = st.text_input(f"Nome do Turno ({d})", value="Trabalho", key=f"nome_{d}")
                     with col_t2:
-                        t_horas = st.number_input(f"Horas ({d})", value=8.0 if d in ["Segunda", "Terça"] else 12.0, step=0.5, key=f"h_{d}")
+                        t_horas = st.number_input(f"Horas ({d})", value=8.0, step=0.5, key=f"h_{d}")
                     config_dias[d] = {"trabalha": True, "estado": t_nome, "horas": t_horas}
                 else:
                     config_dias[d] = {"trabalha": False, "estado": "Folga", "horas": 0.0}
@@ -374,4 +374,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.9 (Totalmente Personalizável)")
+        st.caption("Gestor de Escala PRO v4.0 (100% Personalizável e Limpo)")
