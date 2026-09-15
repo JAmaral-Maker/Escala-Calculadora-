@@ -13,18 +13,10 @@ st.set_page_config(
 
 # Dicionário de tradução dos meses para português
 meses_pt = {
-    "January": "Janeiro",
-    "February": "Fevereiro",
-    "March": "Março",
-    "April": "Abril",
-    "May": "Maio",
-    "June": "Junho",
-    "July": "Julho",
-    "August": "Agosto",
-    "September": "Setembro",
-    "October": "Outubro",
-    "November": "Novembro",
-    "December": "Dezembro"
+    "January": "Janeiro", "February": "Fevereiro", "March": "Março",
+    "April": "Abril", "May": "Maio", "June": "Junho",
+    "July": "Julho", "August": "Agosto", "September": "Setembro",
+    "October": "Outubro", "November": "Novembro", "December": "Dezembro"
 }
 
 meses_num = {
@@ -48,104 +40,87 @@ if "escala_dados" not in st.session_state:
 
 # --- 1. ECRÃ INICIAL DE CRIAÇÃO DE PERFIL / BOAS-VINDAS ---
 if not st.session_state.perfil_criado:
-    st.markdown("## 🛡️ Bem-vindo ao Gestor de Escala & Salário PRO")
-    st.write("Para começar a utilizar a aplicação e calcular os teus turnos e salários, cria o teu perfil.")
-    
-    st.markdown("---")
+    st.markdown("## 🛡️ Gestor de Escala PRO")
+    st.write("Configura o teu perfil para começar.")
     
     with st.form("form_perfil"):
-        st.markdown("### 👤 Dados de Utilizador")
+        st.markdown("### 👤 Utilizador")
         nome_input = st.text_input("O teu Nome", value=st.session_state.nome_utilizador)
         
-        st.markdown("### 💰 Configuração Inicial Rápida")
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            valor_hora_init = st.number_input("Valor da Hora Base (€)", value=7.50, step=0.25)
+        st.markdown("### 💰 Parâmetros Base")
+        c1, c2 = st.columns(2)
+        with c1:
+            valor_hora_init = st.number_input("Valor Hora (€)", value=7.50, step=0.25)
             taxa_irs_init = st.number_input("IRS (%)", value=13.0, step=0.5)
-        with col_f2:
-            subs_refeicao_init = st.number_input("Subsídio de Refeição / Dia (€)", value=6.00, step=0.50)
-            taxa_ss_init = st.number_input("Segurança Social (%)", value=11.0, step=0.0)
+        with c2:
+            subs_refeicao_init = st.number_input("Subs. Refeição (€)", value=6.00, step=0.50)
+            taxa_ss_init = st.number_input("Seg. Social (%)", value=11.0, step=0.0)
             
-        btn_entrar = st.form_submit_button("🚀 Criar Perfil e Entrar", type="primary")
+        st.markdown("")
+        btn_entrar = st.form_submit_button("🚀 Entrar na Aplicação", type="primary", use_container_width=True)
         
         if btn_entrar:
             st.session_state.nome_utilizador = nome_input
-            # Guardamos também as variáveis globais na sessão se necessário
             st.session_state.valor_hora = valor_hora_init
             st.session_state.subs_refeicao = subs_refeicao_init
             st.session_state.taxa_irs = taxa_irs_init
             st.session_state.taxa_ss = taxa_ss_init
-            
             st.session_state.perfil_criado = True
             st.rerun()
 
 else:
-    # --- 2. APLICAÇÃO PRINCIPAL (SÓ APARECE DEPOIS DE CRIAR O PERFIL) ---
-    
-    # Valores por defeito caso venham da sessão
+    # --- 2. APLICAÇÃO PRINCIPAL ---
     v_hora = st.session_state.get("valor_hora", 7.50)
     s_refeicao = st.session_state.get("subs_refeicao", 6.00)
     t_irs = st.session_state.get("taxa_irs", 13.0)
     t_ss = st.session_state.get("taxa_ss", 11.0)
 
-    # --- BARRA LATERAL: Definições e Alteração de Perfil ---
+    # --- BARRA LATERAL ---
     with st.sidebar:
-        st.markdown("### ⚙️ Configurações")
-        st.markdown("---")
+        st.markdown("### ⚙️ Definições")
+        st.session_state.nome_utilizador = st.text_input("Nome", value=st.session_state.nome_utilizador)
         
-        st.session_state.nome_utilizador = st.text_input("Nome do Utilizador", value=st.session_state.nome_utilizador)
+        valor_hora = st.number_input("Valor Hora Base (€)", value=v_hora, step=0.25)
+        subs_refeicao = st.number_input("Subs. Refeição (€)", value=s_refeicao, step=0.50)
         
-        st.markdown("### Parâmetros Salariais")
-        valor_hora = st.number_input("Valor da Hora Base (€)", value=v_hora, step=0.25)
-        subs_refeicao = st.number_input("Subsídio de Refeição / Dia (€)", value=s_refeicao, step=0.50)
-        
-        st.markdown("### Descontos (%)")
         taxa_irs = st.number_input("IRS (%)", value=t_irs, step=0.5)
         taxa_ss = st.number_input("Segurança Social (%)", value=t_ss, step=0.0)
         
-        st.markdown("### Padrão Semanal")
-        turno_padrao = st.text_input("Descrição do Turno Padrão", value="23h - 07h (Noite)")
-        horas_padrao = st.number_input("Horas por Turno", value=8.0, step=0.5)
-        
         st.markdown("---")
-        if st.button("🔄 Terminar Sessão / Mudar Perfil"):
+        if st.button("🔄 Mudar Perfil / Sair", use_container_width=True):
             st.session_state.perfil_criado = False
             st.rerun()
 
     # --- CABEÇALHO PRINCIPAL ---
-    st.markdown("## 🛡️ Gestor de Escala & Salário PRO")
-    st.write(f"Olá, **{st.session_state.nome_utilizador}**! Gere e consulta o teu histórico e escalas mensais.")
-
+    st.markdown(f"## 🛡️ Olá, {st.session_state.nome_utilizador}!")
+    
     # Seleção de Ano e Mês Ativo
     col_ano, col_mes = st.columns(2)
     with col_ano:
         ano_ativo = st.selectbox("Ano:", options=[2026, 2027, 2028], index=0)
-
     with col_mes:
         mes_ativo_en = st.selectbox(
-            "Mês Ativo:", 
+            "Mês:", 
             options=meses_ingles, 
-            index=8, # Setembro por defeito
+            index=8, # Setembro
             format_func=lambda x: meses_pt.get(x, x)
         )
 
     mes_ativo_pt = meses_pt.get(mes_ativo_en)
-    num_mes = meses_num[mes_ativo_en]
+    num_mes = mes_ativo_en = meses_num[mes_ativo_en]
 
     st.markdown("---")
 
     # --- NAVEGAÇÃO POR ABAS ---
-    tab1, tab2, tab3 = st.tabs(["📅 Gerar / Editar Mês", "✏️ Ajustes Pontuais", "📊 Resumo, Banco & Envio"])
+    tab1, tab2, tab3 = st.tabs(["📅 Escala", "✏️ Ajustes", "📊 Resumo"])
 
     with tab1:
-        st.markdown(f"### 🗓️ Geração de Escala para {mes_ativo_pt} {ano_ativo}")
-        st.write("Clica no botão abaixo para preencher automaticamente os dias do mês com base no teu padrão semanal.")
+        st.markdown(f"### 🗓️ Escala de {mes_ativo_pt} {ano_ativo}")
         
         chave_mes = f"{ano_ativo}-{num_mes}"
         
-        if st.button("🚀 Gerar Escala para este Mês", type="primary"):
+        if st.button("🚀 Gerar Escala Automática", type="primary", use_container_width=True):
             _, ultimo_dia = calendar.monthrange(ano_ativo, num_mes)
-            
             lista_dias = []
             dias_semana_pt = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
             
@@ -154,10 +129,10 @@ else:
                 dia_sem_idx = data_atual.weekday()
                 nome_dia_sem = dias_semana_pt[dia_sem_idx]
                 
-                if dia_sem_idx in [0, 1]: # Seg, Ter
+                if dia_sem_idx in [0, 1]: # Seg, Ter (Noite)
                     estado = "Trabalho (Noite)"
-                    h = horas_padrao
-                elif dia_sem_idx in [5, 6]: # Sáb, Dom
+                    h = 8.0
+                elif dia_sem_idx in [5, 6]: # Sáb, Dom (12h)
                     estado = "Trabalho (FDS)"
                     h = 12.0
                 else:
@@ -172,14 +147,12 @@ else:
                 })
                 
             st.session_state.escala_dados[chave_mes] = pd.DataFrame(lista_dias)
-            st.success(f"Escala gerada com sucesso para {mes_ativo_pt} {ano_ativo}!")
+            st.success("Escala gerada com sucesso!")
             st.rerun()
 
-        st.markdown("#### Histórico de Turnos do Mês")
-        
+        st.markdown("#### Histórico do Mês")
         if chave_mes in st.session_state.escala_dados:
             df_atual = st.session_state.escala_dados[chave_mes]
-            
             df_editado = st.data_editor(
                 df_atual,
                 num_rows="fixed",
@@ -188,21 +161,19 @@ else:
             )
             st.session_state.escala_dados[chave_mes] = df_editado
         else:
-            st.info("Ainda não geraste a escala para este mês. Clica no botão acima para começar.")
+            st.info("Clica em 'Gerar Escala Automática' para preencher o mês.")
 
     with tab2:
         st.markdown("### ✏️ Ajustes Pontuais")
-        st.write("Adiciona faltas, férias ou ajustes de última hora no mês selecionado.")
-        
         dia_ajuste = st.number_input("Dia do Mês", min_value=1, max_value=31, value=1)
-        tipo_ajuste = st.selectbox("Tipo de Registo", ["Folga Extra", "Falta Justificada", "Horas Extra (Extra)", "Férias"])
-        horas_extra = st.number_input("Horas Ajustadas", value=0.0, step=0.5)
+        tipo_ajuste = st.selectbox("Tipo", ["Folga Extra", "Falta Justificada", "Horas Extra", "Férias"])
+        horas_ajuste = st.number_input("Horas", value=0.0, step=0.5)
         
-        if st.button("Guardar Ajuste"):
-            st.success(f"Ajuste para o dia {dia_ajuste} guardado com sucesso!")
+        if st.button("Guardar Ajuste", use_container_width=True):
+            st.success(f"Ajuste para o dia {dia_ajuste} guardado!")
 
     with tab3:
-        st.markdown("### 📊 Resumo Financeiro & Banco de Horas")
+        st.markdown("### 📊 Resumo Financeiro")
         
         chave_mes = f"{ano_ativo}-{num_mes}"
         if chave_mes in st.session_state.escala_dados:
@@ -217,25 +188,20 @@ else:
         sub_ref_total = dias_trabalho * subs_refeicao
         total_bruto = salario_base + sub_ref_total
         
-        desconto_irs_val = total_bruto * (taxa_irs / 100)
-        desconto_ss_val = total_bruto * (taxa_ss / 100)
+        desconto_irs_val = total_bruto * (t_irs / 100)
+        desconto_ss_val = total_bruto * (t_ss / 100)
         total_liquido = total_bruto - desconto_irs_val - desconto_ss_val
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total Bruto Estimado", f"{total_bruto:.2f} €")
-            st.metric("Descontos (IRS + SS)", f"{(desconto_irs_val + desconto_ss_val):.2f} €")
-        with col2:
-            st.metric("Total Líquido Final", f"{total_liquido:.2f} €", delta="Estimativa")
-            st.metric("Subsídio de Refeição", f"{sub_ref_total:.2f} €")
-            
+        st.metric("Total Líquido Estimado", f"{total_liquido:.2f} €")
+        st.metric("Total Bruto", f"{total_bruto:.2f} €")
+        st.metric("Subsídio de Refeição", f"{sub_ref_total:.2f} €")
+        
         st.markdown("---")
-        if st.button("📤 Copiar Resumo para WhatsApp"):
-            resumo_whatsapp = f"Resumo {mes_ativo_pt} {ano_ativo} ({st.session_state.nome_utilizador}):\nTotal Horas: {horas_mes}h\nLíquido Estimado: {total_liquido:.2f}€"
-            st.code(resumo_whatsapp, language="text")
-            st.success("Resumo pronto a copiar!")
+        if st.button("📤 Copiar para WhatsApp", use_container_width=True):
+            resumo_zap = f"Resumo {mes_ativo_pt} {ano_ativo} ({st.session_state.nome_utilizador}):\nTotal Horas: {horas_mes}h\nLíquido: {total_liquido:.2f}€"
+            st.code(resumo_zap, language="text")
+            st.success("Copiado!")
 
-    # Rodapé na barra lateral
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala & Salário PRO v2.5")
+        st.caption("Gestor de Escala PRO v2.6")
