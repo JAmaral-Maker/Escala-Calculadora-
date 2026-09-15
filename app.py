@@ -100,19 +100,19 @@ else:
         ano_ativo = st.selectbox("Ano:", options=[2026, 2027, 2028], index=0)
     with col_mes:
         mes_ativo_en = st.selectbox(
-            "Mês:", 
+            "Mês Ativo:", 
             options=meses_ingles, 
-            index=8, # Setembro
+            index=8, # Setembro por defeito
             format_func=lambda x: meses_pt.get(x, x)
         )
 
     mes_ativo_pt = meses_pt.get(mes_ativo_en)
-    num_mes = mes_ativo_en = meses_num[mes_ativo_en]
+    num_mes = meses_num[mes_ativo_en]
 
     st.markdown("---")
 
-    # --- NAVEGAÇÃO POR ABAS ---
-    tab1, tab2, tab3 = st.tabs(["📅 Escala", "✏️ Ajustes", "📊 Resumo"])
+    # --- NAVEGAÇÃO POR ABAS (Adicionada a aba de Resumo Anual) ---
+    tab1, tab2, tab3, tab4 = st.tabs(["📅 Escala", "✏️ Ajustes", "📊 Resumo Mês", "📈 Resumo Anual"])
 
     with tab1:
         st.markdown(f"### 🗓️ Escala de {mes_ativo_pt} {ano_ativo}")
@@ -173,7 +173,7 @@ else:
             st.success(f"Ajuste para o dia {dia_ajuste} guardado!")
 
     with tab3:
-        st.markdown("### 📊 Resumo Financeiro")
+        st.markdown(f"### 📊 Resumo do Mês ({mes_ativo_pt} {ano_ativo})")
         
         chave_mes = f"{ano_ativo}-{num_mes}"
         if chave_mes in st.session_state.escala_dados:
@@ -181,8 +181,8 @@ else:
             horas_mes = df_res[df_res["Estado"].str.contains("Trabalho", na=False)]["Horas"].sum()
             dias_trabalho = len(df_res[df_res["Estado"].str.contains("Trabalho", na=False)])
         else:
-            horas_mes = 160
-            dias_trabalho = 22
+            horas_mes = 0.0
+            dias_trabalho = 0
             
         salario_base = horas_mes * valor_hora
         sub_ref_total = dias_trabalho * subs_refeicao
@@ -194,6 +194,7 @@ else:
         
         st.metric("Total Líquido Estimado", f"{total_liquido:.2f} €")
         st.metric("Total Bruto", f"{total_bruto:.2f} €")
+        st.metric("Total Horas Trabalhadas", f"{horas_mes}h")
         st.metric("Subsídio de Refeição", f"{sub_ref_total:.2f} €")
         
         st.markdown("---")
@@ -202,6 +203,53 @@ else:
             st.code(resumo_zap, language="text")
             st.success("Copiado!")
 
+    with tab4:
+        st.markdown(f"### 📈 Resumo Anual Global ({ano_ativo})")
+        st.write("Acumulado de todos os meses gerados para o ano selecionado.")
+        
+        # Filtrar meses do ano ativo guardados na sessão
+        registos_ano = []
+        total_horas_ano = 0.0
+        total_liquido_ano = 0.0
+        total_bruto_ano = 0.0
+        
+        for k, df_m in st.session_state.escala_dados.items():
+            # Formato da chave: "ANO-MES" (ex: "2026-9")
+            partes = k.split("-")
+            if len(partes) == 2 and int(partes[0]) == ano_ativo:
+                m_num = int(partes[1])
+                # Encontrar o nome do mês em português
+                m_nome_pt = [k_pt for k_en, m_n in meses_num.items() if m_n == m_num and (k_pt := meses_pt.get(k_en))]
+                m_nome_pt = m_nome_pt[0] if m_nome_pt else str(m_num)
+                
+                h_m = df_m[df_m["Estado"].str.contains("Trabalho", na=False)]["Horas"].sum()
+                d_m = len(df_m[df_m["Estado"].str.contains("Trabalho", na=False)])
+                
+                b_m = (h_m * valor_hora) + (d_m * subs_refeicao)
+                l_m = b_m - (b_m * (t_irs / 100)) - (b_m * (t_ss / 100))
+                
+                total_horas_ano += h_m
+                total_bruto_ano += b_m
+                total_liquido_ano += l_m
+                
+                registos_ano.append({
+                    "Mês": m_nome_pt,
+                    "Horas": h_m,
+                    "Dias Trab.": d_m,
+                    "Bruto (€)": round(b_m, 2),
+                    "Líquido (€)": round(l_m, 2)
+                })
+                
+        if registos_ano:
+            st.metric("Total Líquido Acumulado no Ano", f"{total_liquido_ano:.2f} €")
+            st.metric("Total Horas no Ano", f"{total_horas_ano}h")
+            
+            st.markdown("#### Detalhe por Mês")
+            df_anual = pd.DataFrame(registos_ano)
+            st.dataframe(df_anual, use_container_width=True, hide_index=True)
+        else:
+            st.info(f"Ainda não tens meses gerados para o ano {ano_ativo}. Vai à aba 'Escala' e gera os meses que pretendes consultar.")
+
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v2.6")
+        st.caption("Gestor de Escala PRO v2.7")
