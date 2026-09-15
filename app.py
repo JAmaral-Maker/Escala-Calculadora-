@@ -3,11 +3,12 @@ import datetime
 import calendar
 import pandas as pd
 
-# Configuração da página
+# Configuração da página com a barra lateral fechada por defeito em dispositivos móveis
 st.set_page_config(
     page_title="Gestor de Escala & Salário PRO",
     page_icon="🛡️",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # Dicionário de tradução dos meses para português
@@ -23,7 +24,7 @@ meses_pt = {
     "September": "Setembro",
     "October": "Outubro",
     "November": "Novembro",
-    "December": "Desembro" # corrigido para Dezembro
+    "December": "Dezembro"
 }
 
 # Dicionario reverso ou indices para obter o número do mês
@@ -103,7 +104,7 @@ with tab1:
             dia_sem_idx = data_atual.weekday()
             nome_dia_sem = dias_semana_pt[dia_sem_idx]
             
-            # Exemplo de lógica de turnos (ex: Seg/Ter noite, FDS 12h, resto folga)
+            # Lógica adaptada: Seg/Ter noite, Sáb/Dom 12h, resto folga
             if dia_sem_idx in [0, 1]: # Seg, Ter
                 estado = "Trabalho (Noite)"
                 h = horas_padrao
@@ -130,7 +131,6 @@ with tab1:
     if chave_mes in st.session_state.escala_dados:
         df_atual = st.session_state.escala_dados[chave_mes]
         
-        # Permitir editar a tabela diretamente na interface
         df_editado = st.data_editor(
             df_atual,
             num_rows="fixed",
@@ -155,7 +155,6 @@ with tab2:
 with tab3:
     st.markdown("### 📊 Resumo Financeiro & Banco de Horas")
     
-    # Calcular com base na escala gerada se existir, senão usar estimativa
     chave_mes = f"{ano_ativo}-{num_mes}"
     if chave_mes in st.session_state.escala_dados:
         df_res = st.session_state.escala_dados[chave_mes]
@@ -190,4 +189,4 @@ with tab3:
 # Rodapé na barra lateral
 with st.sidebar:
     st.markdown("---")
-    st.caption("Gestor de Escala & Salário PRO v2.2")
+    st.caption("Gestor de Escala & Salário PRO v2.3")
