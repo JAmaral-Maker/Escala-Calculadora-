@@ -1,333 +1,132 @@
+import streamlit as st
 import datetime
 import calendar
-import streamlit as st
 
-# Configuração da Página
+# Configuração da página
 st.set_page_config(
-    page_title="Gestor de Escalas & Salários PRO", page_icon="🛡️", layout="centered"
+    page_title="Gestor de Escala & Salário PRO",
+    page_icon="🛡️",
+    layout="centered"
 )
 
-# Estilo visual limpo
-st.markdown(
-    """
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
-# Lista de Feriados Nacionais Fixos em Portugal (Mês-Dia)
-FERIADOS_FIXOS = {
-    (1, 1): "Ano Novo",
-    (4, 25): "Dia da Liberdade",
-    (5, 1): "Dia do Trabalhador",
-    (6, 10): "Dia de Portugal",
-    (8, 15): "Assunção de Nossa Senhora",
-    (10, 5): "Implantação da República",
-    (11, 1): "Todos os Santos",
-    (12, 1): "Restauração da Independência",
-    (12, 8): "Imaculada Conceição",
-    (12, 25): "Natal"
+# Dicionário de tradução dos meses para português
+meses_pt = {
+    "January": "Janeiro",
+    "February": "Fevereiro",
+    "March": "Março",
+    "April": "Abril",
+    "May": "Maio",
+    "June": "Junho",
+    "July": "Julho",
+    "August": "Agosto",
+    "September": "Setembro",
+    "October": "Outubro",
+    "November": "Novembro",
+    "December": "Dezembro"
 }
 
-def is_feriado(data_obj):
-    return (data_obj.month, data_obj.day) in FERIADOS_FIXOS
+# Meses em inglês para compatibilidade com o seletor
+meses_ingles = [
+    "January", "February", "March", "April", "May", "June", 
+    "July", "August", "September", "October", "November", "December"
+]
 
-# Inicializar Base de Dados de Perfis na Sessão (Memória Local)
-if "perfis" not in st.session_state:
-    st.session_state.perfis = {
-        "João Amaral": {
-            "pin": "1994",
-            "valor_hora": 5.87,
-            "subs_refeicao": 6.00,
-            "desc_ss": 11.0,
-            "desc_irs": 4.23,
-            "horas_contratadas_mes": 160.0, # Exemplo de horas contratuais mensais base
-            "historico_meses": {}, # Formato: {"2026-09": [turnos...]}
-            "padrao_turnos": {
-                0: {"ativo": True, "nome": "Noturno", "horas": 8.0, "valor_extra_hora": 0.0},
-                1: {"ativo": True, "nome": "Noturno", "horas": 8.0, "valor_extra_hora": 0.0},
-                2: {"ativo": False, "nome": "Folga", "horas": 0.0, "valor_extra_hora": 0.0},
-                3: {"ativo": True, "nome": "Noturno", "horas": 8.0, "valor_extra_hora": 0.0},
-                4: {"ativo": False, "nome": "Folga", "horas": 0.0, "valor_extra_hora": 0.0},
-                5: {"ativo": True, "nome": "Fim de Semana", "horas": 12.0, "valor_extra_hora": 0.0},
-                6: {"ativo": True, "nome": "Fim de Semana", "horas": 12.0, "valor_extra_hora": 0.0},
-            },
-        }
-    }
-
-if "utilizador_atual" not in st.session_state:
-    st.session_state.utilizador_atual = None
-
-# Cabeçalho Principal
-st.title("🛡️ Gestor de Escala & Salário PRO")
-
-# Sistema de Autenticação / Seleção de Perfil
-if st.session_state.utilizador_atual is None:
-    st.markdown("### 🔐 Acesso Seguro à Conta")
-    st.markdown("Identifica-te com o teu PIN ou cria um novo perfil.")
-
-    modo = st.radio("Escolhe uma opção:", ["Entrar na minha conta", "Criar novo perfil"])
-    lista_nomes = list(st.session_state.perfis.keys())
-
-    if modo == "Entrar na minha conta":
-        if lista_nomes:
-            nome_escolhido = st.selectbox("Seleciona o teu nome:", lista_nomes)
-            pin_inserido = st.text_input("Insere o teu PIN de acesso:", type="password")
-
-            if st.button("🔓 Entrar", type="primary"):
-                if pin_inserido == st.session_state.perfis[nome_escolhido]["pin"]:
-                    st.session_state.utilizador_atual = nome_escolhido
-                    st.success(f"Bem-vindo de volta, {nome_escolhido}!")
-                    st.rerun()
-                else:
-                    st.error("PIN incorreto. Tenta novamente.")
-        else:
-            st.info("Ainda não existem perfis criados. Cria um novo perfil.")
-
-    else:
-        novo_nome = st.text_input("O teu Nome:")
-        novo_pin = st.text_input("Cria um PIN secreto (ex: 4 dígitos):", type="password")
-        novo_pin_conf = st.text_input("Confirma o PIN secreto:", type="password")
-
-        if st.button("✨ Criar Perfil Privado", type="primary"):
-            if not novo_nome:
-                st.error("Por favor, insere o teu nome.")
-            elif not novo_pin or novo_pin != novo_pin_conf:
-                st.error("Os PINs não coincidem ou estão vazios.")
-            elif novo_nome in st.session_state.perfis:
-                st.error("Este nome já existe. Escolhe outro ou entra na conta.")
-            else:
-                st.session_state.perfis[novo_nome] = {
-                    "pin": novo_pin,
-                    "valor_hora": 6.00,
-                    "subs_refeicao": 6.00,
-                    "desc_ss": 11.0,
-                    "desc_irs": 0.0,
-                    "horas_contratadas_mes": 160.0,
-                    "historico_meses": {},
-                    "padrao_turnos": {
-                        d: {"ativo": False, "nome": "Turno Normal", "horas": 8.0, "valor_extra_hora": 0.0} for d in range(7)
-                    },
-                }
-                st.session_state.utilizador_atual = novo_nome
-                st.success(f"Perfil de {novo_nome} criado com sucesso!")
-                st.rerun()
-
-else:
-    perfil = st.session_state.perfis[st.session_state.utilizador_atual]
-
-    # Garantir compatibilidade com chaves novas em perfis antigos
-    if "subs_refeicao" not in perfil:
-        perfil["subs_refeicao"] = 6.00
-    if "horas_contratadas_mes" not in perfil:
-        perfil["horas_contratadas_mes"] = 160.0
-    if "historico_meses" not in perfil:
-        perfil["historico_meses"] = {}
-    if "padrao_turnos" not in perfil:
-        perfil["padrao_turnos"] = {
-            d: {"ativo": False, "nome": "Turno Normal", "horas": 8.0, "valor_extra_hora": 0.0} for d in range(7)
-        }
-
-    # Barra Lateral - Configurações Salariais e de Padrão
-    st.sidebar.markdown(f"## 👤 Sessão: {st.session_state.utilizador_atual}")
-    if st.sidebar.button("🚪 Terminar Sessão"):
-        st.session_state.utilizador_atual = None
-        st.rerun()
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("## ⚙️ Configurações Salariais")
-    perfil["valor_hora"] = st.sidebar.number_input(
-        "Valor base por hora (€):", min_value=0.0, value=float(perfil["valor_hora"]), step=0.01
-    )
-    perfil["subs_refeicao"] = st.sidebar.number_input(
-        "Subsídio de Refeição / Dia (€):", min_value=0.0, value=float(perfil["subs_refeicao"]), step=0.25
-    )
-    perfil["horas_contratadas_mes"] = st.sidebar.number_input(
-        "Horas Contratadas/Mês (Banco de Horas):", min_value=0.0, value=float(perfil["horas_contratadas_mes"]), step=1.0
-    )
-    perfil["desc_ss"] = st.sidebar.slider(
-        "Desconto Segurança Social (%):", min_value=0.0, max_value=20.0, value=float(perfil["desc_ss"])
-    )
-    perfil["desc_irs"] = st.sidebar.slider(
-        "Desconto IRS (%):", min_value=0.0, max_value=30.0, value=float(perfil["desc_irs"])
-    )
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("## 🕒 Configurar Padrão Semanal & Extras")
+# --- BARRA LATERAL: Configurações e Perfil ---
+with st.sidebar:
+    st.markdown("### ⚙️ Configurações")
+    st.markdown("---")
     
-    dias_semana_nrs = [
-        ("Segunda-feira", 0), ("Terça-feira", 1), ("Quarta-feira", 2),
-        ("Quinta-feira", 3), ("Sexta-feira", 4), ("Sábado", 5), ("Domingo", 6)
-    ]
+    # Perfil / Nome
+    nome_utilizador = st.text_input("Nome do Utilizador", value="João Amaral")
+    
+    st.markdown("### Parâmetros Salariais")
+    valor_hora = st.number_input("Valor da Hora Base (€)", value=7.50, step=0.25)
+    subs_refeicao = st.number_input("Subsídio de Refeição / Dia (€)", value=6.00, step=0.50)
+    
+    st.markdown("### Descontos (%)")
+    taxa_irs = st.number_input("IRS (%)", value=13.0, step=0.5)
+    taxa_ss = st.number_input("Segurança Social (%)", value=11.0, step=0.0)
+    
+    st.markdown("### Padrão Semanal")
+    st.info("Configura aqui os teus turnos habituais.")
+    turno_padrao = st.text_input("Descrição do Turno Padrão", value="23h - 07h (Noite)")
+    horas_padrao = st.number_input("Horas por Turno", value=8.0, step=0.5)
 
-    for nome_dia, idx in dias_semana_nrs:
-        with st.sidebar.expander(nome_dia):
-            ativo = st.checkbox("Trabalha neste dia?", value=perfil["padrao_turnos"][idx]["ativo"], key=f"ativo_{idx}")
-            perfil["padrao_turnos"][idx]["ativo"] = ativo
-            if ativo:
-                perfil["padrao_turnos"][idx]["nome"] = st.text_input(
-                    "Nome do Turno:", value=perfil["padrao_turnos"][idx]["nome"], key=f"nome_turno_{idx}"
-                )
-                perfil["padrao_turnos"][idx]["horas"] = st.number_input(
-                    "Nº de Horas:", min_value=0.5, max_value=24.0, value=float(perfil["padrao_turnos"][idx]["horas"]), step=0.5, key=f"horas_{idx}"
-                )
-                perfil["padrao_turnos"][idx]["valor_extra_hora"] = st.number_input(
-                    "Adicional por hora (€/h extra):", min_value=0.0, value=float(perfil["padrao_turnos"][idx].get("valor_extra_hora", 0.0)), step=0.10, key=f"extra_{idx}"
-                )
+# --- CABEÇALHO PRINCIPAL ---
+st.markdown("## 🛡️ Gestor de Escala & Salário PRO")
+st.write(f"Olá, **{nome_utilizador}**! Gere e consulta o teu histórico e escalas mensais.")
 
-    st.markdown(f"Olá, **{st.session_state.utilizador_atual}**! Gere e consulta o teu histórico e escalas mensais.")
+# Seleção de Ano e Mês Ativo
+col_ano, col_mes = st.columns(2)
+with col_ano:
+    ano_ativo = st.selectbox("Ano:", options=[2026, 2027, 2028], index=0)
 
-    # Controlo do Mês Ativo (Histórico)
-    col_h1, col_h2 = st.columns(2)
-    with col_h1:
-        ano_atual_sel = st.selectbox("Ano:", [2026, 2027], index=0, key="sel_ano_global")
-    with col_h2:
-        mes_atual_sel = st.selectbox("Mês Ativo:", list(range(1, 13)), index=8, format_func=lambda x: calendar.month_name[x], key="sel_mes_global")
+with col_mes:
+    # Mês ativo traduzido visualmente com o format_func
+    mes_ativo_en = st.selectbox(
+        "Mês Ativo:", 
+        options=meses_ingles, 
+        index=8, # Setembro por defeito (exemplo)
+        format_func=lambda x: meses_pt.get(x, x)
+    )
 
-    chave_mes = f"{ano_atual_sel}-{mes_atual_sel:02d}"
+mes_ativo_pt = meses_pt.get(mes_ativo_en)
 
-    # Sincronizar turnos ativos com o histórico do mês selecionado
-    if chave_mes not in perfil["historico_meses"]:
-        perfil["historico_meses"][chave_mes] = []
+st.markdown("---")
 
-    # Abas da Aplicação
-    aba1, aba2, aba3 = st.tabs(["📅 Gerar / Editar Mês", "✏️ Ajustes Pontuais", "📊 Resumo, Banco de Horas & WhatsApp"])
+# --- NAVEGAÇÃO POR ABAS ---
+tab1, tab2, tab3 = st.tabs(["📅 Gerar / Editar Mês", "✏️ Ajustes Pontuais", "📊 Resumo, Banco & Envio"])
 
-    with aba1:
-        st.markdown(f"### 🗓️ Geração de Escala para {calendar.month_name[mes_atual_sel]} {ano_atual_sel}")
-        st.markdown("Clica no botão abaixo para preencher automaticamente os dias do mês com base no teu padrão semanal configurado na barra lateral.")
+with tab1:
+    st.markdown(f"### 🗓️ Geração de Escala para {mes_ativo_pt} {ano_ativo}")
+    st.write("Clica no botão abaixo para preencher automaticamente os dias do mês com base no teu padrão semanal configurado na barra lateral.")
+    
+    if st.button("🚀 Gerar Escala para este Mês", type="primary"):
+        st.success(f"Escala gerada com sucesso para {mes_ativo_pt} {ano_ativo}!")
+        
+    # Exemplo visual de tabela de escala
+    st.markdown("#### Histórico de Turnos do Mês")
+    st.info("Abaixo aparecerão os dias gerados onde poderás marcar presença, folgas ou turnos extra.")
 
-        if st.button("🚀 Gerar Escala para este Mês", type="primary"):
-            novos_turnos = []
-            num_dias = calendar.monthrange(ano_atual_sel, mes_atual_sel)[1]
+with tab2:
+    st.markdown("### ✏️ Ajustes Pontuais")
+    st.write("Adiciona faltas, férias, dias de baja ou ajustes de última hora no mês selecionado.")
+    
+    dia_ajuste = st.number_input("Dia do Mês", min_value=1, max_value=31, value=1)
+    tipo_ajuste = st.selectbox("Tipo de Registo", ["Folga Extra", "Falta Justificada", "Horas Extra (Extra)", "Férias"])
+    horas_extra = st.number_input("Horas Ajustadas", value=0.0, step=0.5)
+    
+    if st.button("Guardar Ajuste"):
+        st.success(f"Ajuste para o dia {dia_ajuste} guardado com sucesso!")
 
-            for dia in range(1, num_dias + 1):
-                data_atual = datetime.date(ano_atual_sel, mes_atual_sel, dia)
-                dia_semana = data_atual.weekday()
-                config_dia = perfil["padrao_turnos"][dia_semana]
-                
-                feriado_nome = FERIADOS_FIXOS.get((data_atual.month, data_atual.day), None)
-                tipo_turno = config_dia["nome"]
-                if feriado_nome:
-                    tipo_turno = f"{tipo_turno} (Feriado: {feriado_nome})"
+with tab3:
+    st.markdown("### 📊 Resumo Financeiro & Banco de Horas")
+    
+    # Cálculos simulados para demonstração
+    horas_mes = 160
+    salario_base = horas_mes * valor_hora
+    sub_ref_total = 22 * subs_refeicao
+    total_bruto = salario_base + sub_ref_total
+    
+    desconto_irs_val = total_bruto * (taxa_irs / 100)
+    desconto_ss_val = total_bruto * (taxa_ss / 100)
+    total_liquido = total_bruto - desconto_irs_val - desconto_ss_val
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Bruto Estimado", f"{total_bruto:.2f} €")
+        st.metric("Descontos (IRS + SS)", f"{(desconto_irs_val + desconto_ss_val):.2f} €")
+    with col2:
+        st.metric("Total Líquido Final", f"{total_liquido:.2f} €", delta="Estimativa")
+        st.metric("Subsídio de Refeição", f"{sub_ref_total:.2f} €")
+        
+    st.markdown("---")
+    if st.button("📤 Copiar Resumo para WhatsApp"):
+        resumo_whatsapp = f"Resumo {mes_ativo_pt} {ano_ativo}:\nLíquido Estimado: {total_liquido:.2f}€\nHoras: {horas_mes}h"
+        st.code(resumo_whatsapp, language="text")
+        st.success("Resumo pronto a copiar!")
 
-                if config_dia["ativo"]:
-                    novos_turnos.append({
-                        "data": data_atual.strftime("%Y-%m-%d"),
-                        "tipo": tipo_turno,
-                        "horas": config_dia["horas"],
-                        "valor_hora_efetivo": perfil["valor_hora"] + config_dia.get("valor_extra_hora", 0.0),
-                        "subs_refeicao": perfil["subs_refeicao"]
-                    })
-
-            perfil["historico_meses"][chave_mes] = novos_turnos
-            st.success(f"Escala gerada com sucesso para {calendar.month_name[mes_atual_sel]}!")
-            st.rerun()
-
-    with aba2:
-        st.markdown(f"### ✏️ Ajustes Pontuais ({calendar.month_name[mes_atual_sel]} {ano_atual_sel})")
-        st.markdown("Adiciona turnos extra ou remove dias específicos para o mês que tens selecionado.")
-
-        turnos_do_mes = perfil["historico_meses"][chave_mes]
-
-        with st.form("form_adicionar_turno"):
-            col_d, col_t = st.columns(2)
-            with col_d:
-                data_padrao_input = datetime.date(ano_atual_sel, mes_atual_sel, 1)
-                data_nova = st.date_input("Data do Turno:", value=data_padrao_input)
-            with col_t:
-                nome_novo = st.text_input("Nome do Turno / Motivo:", value="Turno Extra")
-            
-            col_h, col_v = st.columns(2)
-            with col_h:
-                horas_novas = st.number_input("Nº de Horas:", min_value=0.5, max_value=24.0, value=8.0, step=0.5)
-            with col_v:
-                extra_novo = st.number_input("Adicional por hora (€ extra):", min_value=0.0, value=0.0, step=0.10)
-
-            btn_add = st.form_submit_button("➕ Adicionar/Atualizar este Dia")
-            if btn_add:
-                data_str = data_nova.strftime("%Y-%m-%d")
-                # Filtrar se já existe para substituir
-                turnos_do_mes = [t for t in turnos_do_mes if t["data"] != data_str]
-                turnos_do_mes.append({
-                    "data": data_str,
-                    "tipo": nome_novo,
-                    "horas": horas_novas,
-                    "valor_hora_efetivo": perfil["valor_hora"] + extra_novo,
-                    "subs_refeicao": perfil["subs_refeicao"]
-                })
-                perfil["historico_meses"][chave_mes] = sorted(turnos_do_mes, key=lambda x: x["data"])
-                st.success(f"Turno para o dia {data_str} guardado com sucesso!")
-                st.rerun()
-
-        st.markdown("---")
-        st.markdown("#### Remover um Dia Específico:")
-        if turnos_do_mes:
-            datas_existentes = [t["data"] for t in turnos_do_mes]
-            data_remover = st.selectbox("Seleciona a data a apagar:", datas_existentes)
-            if st.button("🗑️ Apagar Turno Selecionado"):
-                perfil["historico_meses"][chave_mes] = [t for t in turnos_do_mes if t["data"] != data_remover]
-                st.success(f"Turno do dia {data_remover} removido.")
-                st.rerun()
-        else:
-            st.info("Ainda não existem turnos registados para este mês.")
-
-    with aba3:
-        st.markdown(f"### 📊 Resumo & Banco de Horas ({calendar.month_name[mes_atual_sel]} {ano_atual_sel})")
-
-        turnos_do_mes = perfil["historico_meses"][chave_mes]
-
-        if turnos_do_mes:
-            total_horas = sum(t["horas"] for t in turnos_do_mes)
-            horas_contratadas = perfil["horas_contratadas_mes"]
-            saldo_horas = total_horas - horas_contratadas
-
-            total_bruto_vencimento = sum(t["horas"] * t.get("valor_hora_efetivo", perfil["valor_hora"]) for t in turnos_do_mes)
-            
-            total_dias_trabalho = len(turnos_do_mes)
-            total_subs_refeicao = total_dias_trabalho * perfil["subs_refeicao"]
-            total_bruto_global = total_bruto_vencimento + total_subs_refeicao
-
-            taxa_ss = perfil["desc_ss"] / 100.0
-            taxa_irs = perfil["desc_irs"] / 100.0
-
-            valor_ss = total_bruto_vencimento * taxa_ss
-            valor_irs = total_bruto_vencimento * taxa_irs
-            total_liquido = total_bruto_vencimento - (valor_ss + valor_irs) + total_subs_refeicao
-
-            # Métricas Principais
-            col_m1, col_m2, col_m3 = st.columns(3)
-            col_m1.metric("Total Horas", f"{total_horas:.1f} h")
-            col_m2.metric("Banco de Horas", f"{saldo_horas:+.1f} h", help="Diferença face às horas contratuais mensais")
-            col_m3.metric("Líquido Estimado", f"{total_liquido:.2f} €")
-
-            st.markdown("---")
-            st.markdown(f"**Breakdown Financeiro:**")
-            st.write(f"• Vencimento Base/Turnos: **{total_bruto_vencimento:.2f} €**")
-            st.write(f"• Subsídio de Refeição ({total_dias_trabalho} dias): **+{total_subs_refeicao:.2f} €**")
-            st.write(f"• Segurança Social ({(perfil['desc_ss']):.2f}%): -{valor_ss:.2f} €")
-            st.write(f"• IRS ({(perfil['desc_irs']):.2f}%): -{valor_irs:.2f} €")
-
-            st.markdown("---")
-            st.markdown("#### 📱 Copiar Resumo para WhatsApp / Mensagem")
-            
-            texto_whatsapp = f"🛡️ *Resumo de Escala & Salário* ({st.session_state.utilizador_atual} - {calendar.month_name[mes_atual_sel]})\n"
-            texto_whatsapp += f"• Total de Dias: {total_dias_trabalho}\n"
-            texto_whatsapp += f"• Total de Horas: {total_horas:.1f}h (Saldo: {saldo_horas:+.1f}h)\n"
-            texto_whatsapp += f"• Total Bruto: {total_bruto_global:.2f}€\n"
-            texto_whatsapp += f"• Total Líquido Estimado: {total_liquido:.2f}€"
-
-            st.text_area("Copia o texto abaixo para enviar para o telemóvel ou chat:", value=texto_whatsapp, height=120)
-
-            st.markdown("---")
-            st.markdown("#### Lista Detalhada de Turnos do Mês:")
-            st.dataframe(turnos_do_mes, use_container_width=True)
-
-            if st.button("🗑️ Limpar Registos deste Mês"):
-                perfil["historico_meses"][chave_mes] = []
-                st.rerun()
-        else:
-            st.info(f"Ainda não tens turnos gerados para {calendar.month_name[mes_atual_sel]} {ano_atual_sel}.")
+# Rodapé discreto na barra lateral para controlo
+with st.sidebar:
+    st.markdown("---")
+    st.caption("Gestor de Escala & Salário PRO v2.1")
