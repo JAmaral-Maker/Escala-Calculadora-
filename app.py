@@ -27,7 +27,6 @@ if "perfis" not in st.session_state:
             "desc_ss": 11.0,
             "desc_irs": 4.23,
             "turnos": [],
-            # Configuração de turnos personalizada (Dias da semana: 0=Seg, 1=Ter, 2=Qua, 3=Qui, 4=Sex, 5=Sáb, 6=Dom)
             "padrao_turnos": {
                 0: {"ativo": True, "nome": "Noturno", "horas": 8.0},
                 1: {"ativo": True, "nome": "Noturno", "horas": 8.0},
@@ -121,7 +120,6 @@ else:
     # Utilizador Autenticado - Área Principal
     perfil = st.session_state.perfis[st.session_state.utilizador_atual]
 
-    # Garantir compatibilidade com perfis antigos sem padrão de turnos
     if "padrao_turnos" not in perfil:
         perfil["padrao_turnos"] = {
             d: {"ativo": False, "nome": "Turno Normal", "horas": 8.0}
@@ -219,7 +217,7 @@ else:
 
             for dia in range(1, num_dias + 1):
                 data_atual = datetime.date(ano_sel, mes_sel, dia)
-                dia_semana = data_atual.weekday()  # 0=Seg ... 6=Dom
+                dia_semana = data_atual.weekday()
 
                 config_dia = perfil["padrao_turnos"][dia_semana]
                 if config_dia["ativo"]:
@@ -241,19 +239,15 @@ else:
         st.markdown("### 📋 Resumo dos Turnos e Salário")
 
         if perfil["turnos"]:
-            # Calcular totais
             total_horas = sum(t["horas"] for t in perfil["turnos"])
             total_bruto = sum(
-                t["horas"] * perfil["valor_hora"] for t.get("horas", 0) for t in perfil["turnos"] if isinstance(t, dict)
+                t["horas"] * perfil["valor_hora"] for t in perfil["turnos"]
             )
-            # Correção simples para soma de horas/valor bruto
-            total_bruto = sum(t["horas"] * perfil["valor_hora"] for t in perfil["turnos"])
 
             valor_ss = total_bruto * perfil["desc_ss"]
             valor_irs = total_bruto * perfil["desc_irs"]
             total_liquido = total_bruto - (valor_ss + valor_irs)
 
-            # Métricas visuais
             col_m1, col_m2, col_m3 = st.columns(3)
             col_m1.metric("Total de Horas", f"{total_horas:.1f} h")
             col_m2.metric("Total Bruto", f"{total_bruto:.2f} €")
