@@ -104,14 +104,14 @@ if not st.session_state.autenticado:
                 elif novo_nome in st.session_state.perfis_guardados:
                     st.warning("Esse nome já existe. Usa a aba 'Entrar' ou escolhe outro nome.")
                 else:
-                    # Garantir isolamento absoluto com um dicionário de escala totalmente vazio
+                    # Criação de um novo perfil com escala totalmente vazia e independente
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
                         "valor_hora": reg_v_hora,
                         "subs_refeicao": reg_sub,
                         "taxa_irs": reg_irs,
                         "taxa_ss": reg_ss,
-                        "escala_dados": {}  # <-- Vazio por defeito
+                        "escala_dados": {}
                     }
                     st.session_state.autenticado = True
                     st.session_state.utilizador_atual = novo_nome
@@ -128,7 +128,6 @@ else:
     t_irs = dados_perfil["taxa_irs"]
     t_ss = dados_perfil["taxa_ss"]
     
-    # Assegurar explicitamente que cada utilizador usa apenas o seu próprio dicionário de escalas
     if "escala_dados" not in dados_perfil:
         dados_perfil["escala_dados"] = {}
     escala_dados = dados_perfil["escala_dados"]
@@ -144,7 +143,6 @@ else:
         novo_t_irs = st.number_input("IRS (%)", value=t_irs, step=0.5)
         novo_t_ss = st.number_input("Segurança Social (%)", value=t_ss, step=0.0)
         
-        # Atualizar dados no dicionário do perfil
         dados_perfil["valor_hora"] = novo_v_hora
         dados_perfil["subs_refeicao"] = novo_s_refeicao
         dados_perfil["taxa_irs"] = novo_t_irs
@@ -202,9 +200,12 @@ else:
                 else:
                     estado = "Folga"
                     h = 0.0
-                    
+                
+                # Formatação rigorosa de data DD/MM/AAAA para evitar conflitos visuais
+                data_formatada = f"{dia:02d}/{num_mes:02d}/{ano_ativo}"
+                
                 lista_dias.append({
-                    "Dia": f"{dia:02d}/{num_mes:02d}/{ano_ativo}",
+                    "Dia": data_formatada,
                     "Dia da Semana": nome_dia_sem,
                     "Estado": estado,
                     "Horas": h
@@ -222,7 +223,7 @@ else:
                 df_atual,
                 num_rows="fixed",
                 use_container_width=True,
-                key=f"editor_{chave_mes}_{nome_u}"
+                key=f"editor_{nome_u}_{chave_mes}"
             )
             escala_dados[chave_mes] = df_editado
         else:
@@ -354,4 +355,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.3 (Isolamento Perfeito)")
+        st.caption("Gestor de Escala PRO v3.4 (Correção Data/Cache)")
