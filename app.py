@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import calendar
+import pandas as pd
 
 # Configuração da página
 st.set_page_config(
@@ -22,14 +23,17 @@ meses_pt = {
     "September": "Setembro",
     "October": "Outubro",
     "November": "Novembro",
-    "December": "Dezembro"
+    "December": "Desembro" # corrigido para Dezembro
 }
 
-# Meses em inglês para compatibilidade com o seletor
-meses_ingles = [
-    "January", "February", "March", "April", "May", "June", 
-    "July", "August", "September", "October", "November", "December"
-]
+# Dicionario reverso ou indices para obter o número do mês
+meses_num = {
+    "January": 1, "February": 2, "March": 3, "April": 4,
+    "May": 5, "June": 6, "July": 7, "August": 8,
+    "September": 9, "October": 10, "November": 11, "December": 12
+}
+
+meses_ingles = list(meses_num.keys())
 
 # --- BARRA LATERAL: Configurações e Perfil ---
 with st.sidebar:
@@ -62,17 +66,21 @@ with col_ano:
     ano_ativo = st.selectbox("Ano:", options=[2026, 2027, 2028], index=0)
 
 with col_mes:
-    # Mês ativo traduzido visualmente com o format_func
     mes_ativo_en = st.selectbox(
         "Mês Ativo:", 
         options=meses_ingles, 
-        index=8, # Setembro por defeito (exemplo)
+        index=8, # Setembro por defeito
         format_func=lambda x: meses_pt.get(x, x)
     )
 
 mes_ativo_pt = meses_pt.get(mes_ativo_en)
+num_mes = meses_num[mes_ativo_en]
 
 st.markdown("---")
+
+# --- GESTÃO DE ESTADO (SESSION STATE) PARA A ESCALA ---
+if "escala_dados" not in st.session_state:
+    st.session_state.escala_dados = {}
 
 # --- NAVEGAÇÃO POR ABAS ---
 tab1, tab2, tab3 = st.tabs(["📅 Gerar / Editar Mês", "✏️ Ajustes Pontuais", "📊 Resumo, Banco & Envio"])
@@ -81,16 +89,61 @@ with tab1:
     st.markdown(f"### 🗓️ Geração de Escala para {mes_ativo_pt} {ano_ativo}")
     st.write("Clica no botão abaixo para preencher automaticamente os dias do mês com base no teu padrão semanal configurado na barra lateral.")
     
+    chave_mes = f"{ano_ativo}-{num_mes}"
+    
     if st.button("🚀 Gerar Escala para este Mês", type="primary"):
-        st.success(f"Escala gerada com sucesso para {mes_ativo_pt} {ano_ativo}!")
+        # Obter número de dias do mês
+        _, ultimo_dia = calendar.monthrange(ano_ativo, num_mes)
         
-    # Exemplo visual de tabela de escala
+        lista_dias = []
+        dias_semana_pt = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+        
+        for dia in range(1, ultimo_dia + 1):
+            data_atual = datetime.date(ano_ativo, num_mes, dia)
+            dia_sem_idx = data_atual.weekday()
+            nome_dia_sem = dias_semana_pt[dia_sem_idx]
+            
+            # Exemplo de lógica de turnos (ex: Seg/Ter noite, FDS 12h, resto folga)
+            if dia_sem_idx in [0, 1]: # Seg, Ter
+                estado = "Trabalho (Noite)"
+                h = horas_padrao
+            elif dia_sem_idx in [5, 6]: # Sáb, Dom
+                estado = "Trabalho (FDS)"
+                h = 12.0
+            else:
+                estado = "Folga"
+                h = 0.0
+                
+            lista_dias.append({
+                "Dia": f"{dia:02d}/{num_mes:02d}/{ano_ativo}",
+                "Dia da Semana": nome_dia_sem,
+                "Estado": estado,
+                "Horas": h
+            })
+            
+        st.session_state.escala_dados[chave_mes] = pd.DataFrame(lista_dias)
+        st.success(f"Escala gerada com sucesso para {mes_ativo_pt} {ano_ativo}!")
+        st.rerun()
+
     st.markdown("#### Histórico de Turnos do Mês")
-    st.info("Abaixo aparecerão os dias gerados onde poderás marcar presença, folgas ou turnos extra.")
+    
+    if chave_mes in st.session_state.escala_dados:
+        df_atual = st.session_state.escala_dados[chave_mes]
+        
+        # Permitir editar a tabela diretamente na interface
+        df_editado = st.data_editor(
+            df_atual,
+            num_rows="fixed",
+            use_container_width=True,
+            key=f"editor_{chave_mes}"
+        )
+        st.session_state.escala_dados[chave_mes] = df_editado
+    else:
+        st.info("Ainda não geraste a escala para este mês. Clica no botão acima para começar.")
 
 with tab2:
     st.markdown("### ✏️ Ajustes Pontuais")
-    st.write("Adiciona faltas, férias, dias de baja ou ajustes de última hora no mês selecionado.")
+    st.write("Adiciona faltas, férias ou ajustes de última hora no mês selecionado.")
     
     dia_ajuste = st.number_input("Dia do Mês", min_value=1, max_value=31, value=1)
     tipo_ajuste = st.selectbox("Tipo de Registo", ["Folga Extra", "Falta Justificada", "Horas Extra (Extra)", "Férias"])
@@ -102,10 +155,18 @@ with tab2:
 with tab3:
     st.markdown("### 📊 Resumo Financeiro & Banco de Horas")
     
-    # Cálculos simulados para demonstração
-    horas_mes = 160
+    # Calcular com base na escala gerada se existir, senão usar estimativa
+    chave_mes = f"{ano_ativo}-{num_mes}"
+    if chave_mes in st.session_state.escala_dados:
+        df_res = st.session_state.escala_dados[chave_mes]
+        horas_mes = df_res[df_res["Estado"].str.contains("Trabalho", na=False)]["Horas"].sum()
+        dias_trabalho = len(df_res[df_res["Estado"].str.contains("Trabalho", na=False)])
+    else:
+        horas_mes = 160
+        dias_trabalho = 22
+        
     salario_base = horas_mes * valor_hora
-    sub_ref_total = 22 * subs_refeicao
+    sub_ref_total = dias_trabalho * subs_refeicao
     total_bruto = salario_base + sub_ref_total
     
     desconto_irs_val = total_bruto * (taxa_irs / 100)
@@ -122,11 +183,11 @@ with tab3:
         
     st.markdown("---")
     if st.button("📤 Copiar Resumo para WhatsApp"):
-        resumo_whatsapp = f"Resumo {mes_ativo_pt} {ano_ativo}:\nLíquido Estimado: {total_liquido:.2f}€\nHoras: {horas_mes}h"
+        resumo_whatsapp = f"Resumo {mes_ativo_pt} {ano_ativo}:\nTotal Horas: {horas_mes}h\nLíquido Estimado: {total_liquido:.2f}€"
         st.code(resumo_whatsapp, language="text")
         st.success("Resumo pronto a copiar!")
 
-# Rodapé discreto na barra lateral para controlo
+# Rodapé na barra lateral
 with st.sidebar:
     st.markdown("---")
-    st.caption("Gestor de Escala & Salário PRO v2.1")
+    st.caption("Gestor de Escala & Salário PRO v2.2")
