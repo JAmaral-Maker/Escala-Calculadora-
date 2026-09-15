@@ -82,7 +82,7 @@ if not st.session_state.autenticado:
             
             c1, c2 = st.columns(2)
             with c1:
-                reg_v_hora = st.number_input("Valor Hora (€)", value=0.0, step=0.25, format="%.2f")
+                reg_v_hora = st.number_input("Valor Hora Base (€)", value=0.0, step=0.25, format="%.2f")
                 reg_irs = st.number_input("IRS (%)", value=0.0, step=0.5, format="%.1f")
             with c2:
                 reg_sub = st.number_input("Subs. Refeição (€)", value=0.0, step=0.50, format="%.2f")
@@ -140,9 +140,9 @@ else:
     # --- BARRA LATERAL ---
     with st.sidebar:
         st.markdown(f"### 👤 Utilizador: {nome_u}")
-        st.markdown("### ⚙️ Definições")
+        st.markdown("### ⚙️ Definições Gerais")
         
-        novo_v_hora = st.number_input("Valor Hora Base (€)", value=v_hora, step=0.25, format="%.2f")
+        novo_v_hora = st.number_input("Valor Hora Base de Referência (€)", value=v_hora, step=0.25, format="%.2f")
         novo_s_refeicao = st.number_input("Subs. Refeição (€)", value=s_refeicao, step=0.50, format="%.2f")
         
         novo_t_irs = st.number_input("IRS (%)", value=t_irs, step=0.5, format="%.1f")
@@ -194,26 +194,28 @@ else:
     with tab1:
         st.markdown(f"### 🗓️ Escala de {mes_ativo_pt} {ano_ativo}")
         
-        # PAINEL DE CONFIGURAÇÃO TOTALMENTE LIMPO POR DEFEITO
-        with st.expander("⚙️ Configurar os teus Dias e Horários de Trabalho", expanded=False):
-            st.write("Seleciona os dias em que trabalhas e define os respetivos turnos:")
+        # PAINEL DE CONFIGURAÇÃO COM VALOR HORA POR TURNO
+        with st.expander("⚙️ Configurar Dias, Horários e Valor Hora por Turno", expanded=False):
+            st.write("Seleciona os dias, dá nome ao turno, define as horas e o respetivo valor por hora (ex: valor noturno diferenciado):")
             
             dias_semana_lista = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
             
             config_dias = {}
             for d in dias_semana_lista:
                 st.markdown(f"**{d}**")
-                # value=False garante que começa tudo desmarcado
                 c_trab = st.checkbox(f"Trabalha à {d}?", value=False, key=f"chk_{d}")
                 if c_trab:
-                    col_t1, col_t2 = st.columns(2)
-                    with col_t1:
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
                         t_nome = st.text_input(f"Nome do Turno ({d})", value="Trabalho", key=f"nome_{d}")
-                    with col_t2:
+                    with c2:
                         t_horas = st.number_input(f"Horas ({d})", value=8.0, step=0.5, key=f"h_{d}")
-                    config_dias[d] = {"trabalha": True, "estado": t_nome, "horas": t_horas}
+                    with c3:
+                        t_vhora = st.number_input(f"Valor/Hora (€) ({d})", value=novo_v_hora, step=0.25, format="%.2f", key=f"vh_{d}")
+                    
+                    config_dias[d] = {"trabalha": True, "estado": t_nome, "horas": t_horas, "valor_hora": t_vhora}
                 else:
-                    config_dias[d] = {"trabalha": False, "estado": "Folga", "horas": 0.0}
+                    config_dias[d] = {"trabalha": False, "estado": "Folga", "horas": 0.0, "valor_hora": 0.0}
                 st.markdown("---")
 
         if st.button("🚀 Gerar Escala com a Minha Configuração", type="primary", use_container_width=True):
@@ -225,14 +227,16 @@ else:
                 dia_sem_idx = data_atual.weekday()
                 nome_dia_sem = dias_semana_lista[dia_sem_idx]
                 
-                info_dia = config_dias.get(nome_dia_sem, {"trabalha": False, "estado": "Folga", "horas": 0.0})
+                info_dia = config_dias.get(nome_dia_sem, {"trabalha": False, "estado": "Folga", "horas": 0.0, "valor_hora": 0.0})
                 
                 if info_dia["trabalha"]:
                     estado = info_dia["estado"]
                     h = info_dia["horas"]
+                    vh = info_dia["valor_hora"]
                 else:
                     estado = "Folga"
                     h = 0.0
+                    vh = 0.0
                 
                 data_formatada = f"{dia:02d}/{num_mes:02d}/{ano_ativo}"
                 
@@ -240,15 +244,16 @@ else:
                     "Dia": data_formatada,
                     "Dia da Semana": nome_dia_sem,
                     "Estado": estado,
-                    "Horas": h
+                    "Horas": h,
+                    "Valor/Hora (€)": vh
                 })
                 
             df_novo = pd.DataFrame(lista_dias)
             escala_dados[chave_mes] = df_novo
-            st.success("Escala gerada com a tua configuração personalizada!")
+            st.success("Escala gerada com valores por hora personalizados por turno!")
             st.rerun()
 
-        st.markdown("#### Histórico do Mês (Podes editar diretamente na tabela abaixo)")
+        st.markdown("#### Histórico do Mês (Podes editar diretamente na tabela abaixo, incluindo o valor/hora)")
         if chave_mes in escala_dados and not escala_dados[chave_mes].empty:
             df_atual = escala_dados[chave_mes]
             df_editado = st.data_editor(
@@ -278,7 +283,11 @@ else:
         with col_d2:
             dia_fim = st.number_input("Dia de Fim", min_value=1, max_value=ultimo_dia_mes, value=1)
             
-        h_ajuste = st.number_input("Horas para este período", value=8.0, step=0.5)
+        col_aj1, col_aj2 = st.columns(2)
+        with col_aj1:
+            h_ajuste = st.number_input("Horas para este período", value=8.0, step=0.5)
+        with col_aj2:
+            vh_ajuste = st.number_input("Valor/Hora (€) para este período", value=novo_v_hora, step=0.25, format="%.2f")
             
         if st.button("⚡ Aplicar ao Período", use_container_width=True):
             if chave_mes not in escala_dados or escala_dados[chave_mes].empty:
@@ -289,7 +298,9 @@ else:
                     d_num = int(row["Dia"].split("/")[0])
                     if dia_inicio <= d_num <= dia_fim:
                         df_temp.at[index, "Estado"] = tipo_ajuste
-                        df_temp.at[index, "Horas"] = h_ajuste if "Folga" not in tipo_ajuste and "Férias" not in tipo_ajuste else 0.0
+                        is_trabalho = not any(w in tipo_ajuste.lower() for w in ["folga", "férias", "falta"])
+                        df_temp.at[index, "Horas"] = h_ajuste if is_trabalho else 0.0
+                        df_temp.at[index, "Valor/Hora (€)"] = vh_ajuste if is_trabalho else 0.0
                 
                 escala_dados[chave_mes] = df_temp
                 st.success(f"Período atualizado com sucesso!")
@@ -301,13 +312,21 @@ else:
         if chave_mes in escala_dados and not escala_dados[chave_mes].empty:
             df_res = escala_dados[chave_mes]
             mask_trab = ~df_res["Estado"].str.contains("Folga|Férias|Falta", case=False, na=False)
-            horas_mes = df_res[mask_trab]["Horas"].sum()
-            dias_trabalho = len(df_res[mask_trab])
+            df_trab = df_res[mask_trab]
+            
+            horas_mes = df_trab["Horas"].sum()
+            dias_trabalho = len(df_trab)
+            
+            # Cálculo exato multiplicando cada hora pelo respetivo valor/hora da linha
+            if "Valor/Hora (€)" in df_trab.columns:
+                salario_base = (df_trab["Horas"] * df_trab["Valor/Hora (€)"]).sum()
+            else:
+                salario_base = horas_mes * novo_v_hora
         else:
             horas_mes = 0.0
             dias_trabalho = 0
+            salario_base = 0.0
             
-        salario_base = horas_mes * novo_v_hora
         sub_ref_total = dias_trabalho * novo_s_refeicao
         total_bruto = salario_base + sub_ref_total
         
@@ -342,10 +361,17 @@ else:
                 m_nome_pt = m_nome_pt[0] if m_nome_pt else str(m_num)
                 
                 mask_t = ~df_m["Estado"].str.contains("Folga|Férias|Falta", case=False, na=False)
-                h_m = df_m[mask_t]["Horas"].sum()
-                d_m = len(df_m[mask_t])
+                df_tm = df_m[mask_t]
                 
-                b_m = (h_m * novo_v_hora) + (d_m * novo_s_refeicao)
+                h_m = df_tm["Horas"].sum()
+                d_m = len(df_tm)
+                
+                if "Valor/Hora (€)" in df_tm.columns:
+                    s_base_m = (df_tm["Horas"] * df_tm["Valor/Hora (€)"]).sum()
+                else:
+                    s_base_m = h_m * novo_v_hora
+                
+                b_m = s_base_m + (d_m * novo_s_refeicao)
                 l_m = b_m - (b_m * (novo_t_irs / 100)) - (b_m * (novo_t_ss / 100))
                 
                 total_horas_ano += h_m
@@ -374,4 +400,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v4.0 (100% Personalizável e Limpo)")
+        st.caption("Gestor de Escala PRO v4.1 (Valor Hora Dinâmico por Turno)")
