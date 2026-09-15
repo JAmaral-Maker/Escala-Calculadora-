@@ -27,7 +27,7 @@ meses_num = {
 
 meses_ingles = list(meses_num.keys())
 
-# --- GESTÃO DE ESTADO GLOBAL (Base de Dados Local em Memória) ---
+# --- GESTÃO DE ESTADO GLOBAL ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 
@@ -46,7 +46,7 @@ if not st.session_state.autenticado:
     nomes_existentes = list(st.session_state.perfis_guardados.keys())
     
     if not nomes_existentes:
-        st.info("👋 Bem-vindo! Como ainda não existem contas criadas, começa por registar o teu perfil.")
+        st.info("👋 Bem-vindo! Começa por criar o teu perfil.")
         aba_registo, aba_login = st.tabs(["➕ Criar Novo Perfil", "🔑 Entrar"])
     else:
         aba_login, aba_registo = st.tabs(["🔑 Entrar", "➕ Criar Novo Perfil"])
@@ -72,7 +72,7 @@ if not st.session_state.autenticado:
                     else:
                         st.error("Utilizador não encontrado.")
         else:
-            st.warning("Ainda não existem utilizadores registados. Cria uma conta na aba ao lado.")
+            st.warning("Ainda não existem utilizadores registados.")
 
     with aba_registo:
         with st.form("form_registo"):
@@ -96,7 +96,7 @@ if not st.session_state.autenticado:
                 elif len(novo_pin) != 4 or not novo_pin.isdigit():
                     st.warning("O PIN deve conter exatamente 4 dígitos numéricos.")
                 elif novo_nome in st.session_state.perfis_guardados:
-                    st.warning("Esse nome já existe na memória. Escolhe outro nome.")
+                    st.warning("Esse nome já existe. Escolhe outro.")
                 else:
                     st.session_state.perfis_guardados[novo_nome] = {
                         "pin": novo_pin,
@@ -104,7 +104,7 @@ if not st.session_state.autenticado:
                         "subs_refeicao": reg_sub,
                         "taxa_irs": reg_irs,
                         "taxa_ss": reg_ss,
-                        "escala_dados": {}  # Garante escala estritamente vazia
+                        "escala_dados": {}
                     }
                     st.session_state.autenticado = True
                     st.session_state.utilizador_atual = novo_nome
@@ -118,7 +118,7 @@ if not st.session_state.autenticado:
             st.rerun()
 
 else:
-    # --- 2. APLICAÇÃO PRINCIPAL (Sessão Ativa) ---
+    # --- 2. APLICAÇÃO PRINCIPAL ---
     nome_u = st.session_state.utilizador_atual
     
     if nome_u not in st.session_state.perfis_guardados:
@@ -154,13 +154,13 @@ else:
         dados_perfil["taxa_ss"] = novo_t_ss
         
         st.markdown("---")
-        if st.button("🔒 Bloquear / Sair da Conta", use_container_width=True):
+        if st.button("🔒 Sair da Conta", use_container_width=True):
             st.session_state.autenticado = False
             st.session_state.utilizador_atual = None
             st.rerun()
             
         st.markdown("---")
-        if st.button("🗑️ Apagar Conta e Reiniciar", use_container_width=True):
+        if st.button("🗑️ Apagar Conta", use_container_width=True):
             if nome_u in st.session_state.perfis_guardados:
                 del st.session_state.perfis_guardados[nome_u]
             st.session_state.autenticado = False
@@ -194,22 +194,42 @@ else:
     with tab1:
         st.markdown(f"### 🗓️ Escala de {mes_ativo_pt} {ano_ativo}")
         
-        if st.button("🚀 Gerar Escala Automática (Seg/Ter Noite, FDS 12h)", type="primary", use_container_width=True):
+        # PAINEL DE CONFIGURAÇÃO DE TURNOS PERSONALIZADOS DO UTILIZADOR
+        with st.expander("⚙️ Configurar os teus Dias e Horários de Trabalho", expanded=False):
+            st.write("Define quais os dias da semana em que trabalhas por defeito e quantas horas fazes:")
+            
+            dias_semana_lista = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+            
+            # Seleção individual por dia da semana
+            config_dias = {}
+            for d in dias_semana_lista:
+                st.markdown(f"**{d}**")
+                c_trab = st.checkbox(f"Trabalha à {d}?", value=(d in ["Segunda", "Terça", "Sábado", "Domingo"]), key=f"chk_{d}")
+                if c_trab:
+                    col_t1, col_t2 = st.columns(2)
+                    with col_t1:
+                        t_nome = st.text_input(f"Nome do Turno ({d})", value="Trabalho (Noite)" if d in ["Segunda", "Terça"] else "Trabalho (FDS)", key=f"nome_{d}")
+                    with col_t2:
+                        t_horas = st.number_input(f"Horas ({d})", value=8.0 if d in ["Segunda", "Terça"] else 12.0, step=0.5, key=f"h_{d}")
+                    config_dias[d] = {"trabalha": True, "estado": t_nome, "horas": t_horas}
+                else:
+                    config_dias[d] = {"trabalha": False, "estado": "Folga", "horas": 0.0}
+                st.markdown("---")
+
+        if st.button("🚀 Gerar Escala com a Minha Configuração", type="primary", use_container_width=True):
             _, ultimo_dia = calendar.monthrange(ano_ativo, num_mes)
             lista_dias = []
-            dias_semana_pt = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
             
             for dia in range(1, ultimo_dia + 1):
                 data_atual = datetime.date(ano_ativo, num_mes, dia)
                 dia_sem_idx = data_atual.weekday()
-                nome_dia_sem = dias_semana_pt[dia_sem_idx]
+                nome_dia_sem = dias_semana_lista[dia_sem_idx]
                 
-                if dia_sem_idx in [0, 1]: # Seg, Ter (Noite)
-                    estado = "Trabalho (Noite)"
-                    h = 8.0
-                elif dia_sem_idx in [5, 6]: # Sáb, Dom (12h)
-                    estado = "Trabalho (FDS)"
-                    h = 12.0
+                info_dia = config_dias.get(nome_dia_sem, {"trabalha": False, "estado": "Folga", "horas": 0.0})
+                
+                if info_dia["trabalha"]:
+                    estado = info_dia["estado"]
+                    h = info_dia["horas"]
                 else:
                     estado = "Folga"
                     h = 0.0
@@ -225,10 +245,10 @@ else:
                 
             df_novo = pd.DataFrame(lista_dias)
             escala_dados[chave_mes] = df_novo
-            st.success("Escala gerada com sucesso!")
+            st.success("Escala gerada com a tua configuração personalizada!")
             st.rerun()
 
-        st.markdown("#### Histórico do Mês")
+        st.markdown("#### Histórico do Mês (Podes editar diretamente na tabela abaixo)")
         if chave_mes in escala_dados and not escala_dados[chave_mes].empty:
             df_atual = escala_dados[chave_mes]
             df_editado = st.data_editor(
@@ -239,15 +259,15 @@ else:
             )
             escala_dados[chave_mes] = df_editado
         else:
-            st.info("Ainda não tens escala gerada para este mês. Clica em 'Gerar Escala Automática' acima para preencher.")
+            st.info("Ainda não tens escala gerada para este mês. Configura os teus dias acima e clica em gerar.")
 
     with tab2:
-        st.markdown("### ✏️ Ajustes Pontuais & Períodos Automáticos")
-        st.write("Aplica alterações rápidas a um dia isolado ou a um intervalo de dias (ex: férias, folgas extra).")
+        st.markdown("### ✏️ Ajustes Pontuais & Períodos")
+        st.write("Aplica alterações rápidas a dias isolados ou intervalos (ex: férias, folgas extra).")
         
         tipo_ajuste = st.selectbox(
-            "Tipo de Estado a Aplicar", 
-            ["Folga", "Férias", "Falta Justificada", "Trabalho (Noite) [8h]", "Trabalho (FDS) [12h]"]
+            "Novo Estado a Aplicar", 
+            ["Folga", "Férias", "Falta Justificada", "Trabalho (Noite)", "Trabalho (Normal)", "Trabalho (Extra)"]
         )
         
         col_d1, col_d2 = st.columns(2)
@@ -256,29 +276,23 @@ else:
         with col_d1:
             dia_inicio = st.number_input("Dia de Início", min_value=1, max_value=ultimo_dia_mes, value=1)
         with col_d2:
-            dia_fim = st.number_input("Dia de Fim (ou igual ao de início)", min_value=1, max_value=ultimo_dia_mes, value=1)
+            dia_fim = st.number_input("Dia de Fim", min_value=1, max_value=ultimo_dia_mes, value=1)
             
-        if st.button("⚡ Aplicar ao Período Selecionado", use_container_width=True):
+        h_ajuste = st.number_input("Horas para este período", value=8.0, step=0.5)
+            
+        if st.button("⚡ Aplicar ao Período", use_container_width=True):
             if chave_mes not in escala_dados or escala_dados[chave_mes].empty:
-                st.warning("Primeiro deves gerar a escala do mês na aba 'Escala'.")
+                st.warning("Primeiro deves gerar a escala do mês.")
             else:
                 df_temp = escala_dados[chave_mes]
-                
-                if "Noite" in tipo_ajuste:
-                    h_val = 8.0
-                elif "FDS" in tipo_ajuste:
-                    h_val = 12.0
-                else:
-                    h_val = 0.0
-                
                 for index, row in df_temp.iterrows():
                     d_num = int(row["Dia"].split("/")[0])
                     if dia_inicio <= d_num <= dia_fim:
                         df_temp.at[index, "Estado"] = tipo_ajuste
-                        df_temp.at[index, "Horas"] = h_val
+                        df_temp.at[index, "Horas"] = h_ajuste if "Folga" not in tipo_ajuste and "Férias" not in tipo_ajuste else 0.0
                 
                 escala_dados[chave_mes] = df_temp
-                st.success(f"Período de {dia_inicio} a {dia_fim} atualizado para '{tipo_ajuste}' com sucesso!")
+                st.success(f"Período atualizado com sucesso!")
                 st.rerun()
 
     with tab3:
@@ -286,7 +300,7 @@ else:
         
         if chave_mes in escala_dados and not escala_dados[chave_mes].empty:
             df_res = escala_dados[chave_mes]
-            mask_trab = df_res["Estado"].str.contains("Trabalho", na=False)
+            mask_trab = ~df_res["Estado"].str.contains("Folga|Férias|Falta", case=False, na=False)
             horas_mes = df_res[mask_trab]["Horas"].sum()
             dias_trabalho = len(df_res[mask_trab])
         else:
@@ -314,8 +328,6 @@ else:
 
     with tab4:
         st.markdown(f"### 📈 Resumo Anual Global ({ano_ativo})")
-        st.write("Acumulado de todos os meses gerados para o ano selecionado.")
-        
         registos_ano = []
         total_horas_ano = 0.0
         total_liquido_ano = 0.0
@@ -329,7 +341,7 @@ else:
                 m_nome_pt = [k_pt for k_en, m_n in meses_num.items() if m_n == m_num and (k_pt := meses_pt.get(k_en))]
                 m_nome_pt = m_nome_pt[0] if m_nome_pt else str(m_num)
                 
-                mask_t = df_m["Estado"].str.contains("Trabalho", na=False)
+                mask_t = ~df_m["Estado"].str.contains("Folga|Férias|Falta", case=False, na=False)
                 h_m = df_m[mask_t]["Horas"].sum()
                 d_m = len(df_m[mask_t])
                 
@@ -350,23 +362,16 @@ else:
                 
         if registos_ano:
             registos_ano = sorted(registos_ano, key=lambda x: x["Mês_Num"])
-            
             st.metric("Total Líquido Acumulado no Ano", f"{total_liquido_ano:.2f} €")
             st.metric("Total Horas no Ano", f"{total_horas_ano}h")
             
             st.markdown("---")
-            st.markdown("#### 📊 Evolução do Valor Líquido por Mês")
-            
             df_anual = pd.DataFrame(registos_ano)
-            df_grafico = df_anual.set_index("Mês")["Líquido (€)"]
-            st.bar_chart(df_grafico)
-            
-            st.markdown("#### Detalhe por Mês")
-            df_tabela = df_anual.drop(columns=["Mês_Num"])
-            st.dataframe(df_tabela, use_container_width=True, hide_index=True)
+            st.bar_chart(df_anual.set_index("Mês")["Líquido (€)"])
+            st.dataframe(df_anual.drop(columns=["Mês_Num"]), use_container_width=True, hide_index=True)
         else:
             st.info(f"Ainda não tens meses gerados para o ano {ano_ativo}.")
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.8 (100% Limpo)")
+        st.caption("Gestor de Escala PRO v3.9 (Totalmente Personalizável)")
