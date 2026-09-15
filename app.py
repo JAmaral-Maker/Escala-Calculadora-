@@ -20,7 +20,6 @@ st.markdown(
 
 # Inicializar Base de Dados de Perfis na Sessão
 if "perfis" not in st.session_state:
-    # Perfil predefinido do João Amaral com PIN privado "1994" (podes alterar na app)
     st.session_state.perfis = {
         "João Amaral": {
             "pin": "1994",
@@ -223,7 +222,7 @@ else:
                 f"• Segurança Social ({(perfil['desc_ss']*100):.1f}%): -{valor_ss:.2f} €"
             )
             st.write(
-                f"• IRS ({(perfil['desc_irs']*100):.1f}%): -{valor_irs]:.2f} €"
+                f"• IRS ({(perfil['desc_irs']*100):.1f}%): -{valor_irs:.2f} €"
             )
 
             st.markdown("---")
