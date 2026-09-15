@@ -27,72 +27,132 @@ meses_num = {
 
 meses_ingles = list(meses_num.keys())
 
-# --- GESTÃO DE ESTADO ---
-if "perfil_criado" not in st.session_state:
-    st.session_state.perfil_criado = False
+# --- GESTÃO DE ESTADO GLOBAL (Base de Dados Local em Memória) ---
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
 
-if "nome_utilizador" not in st.session_state:
-    st.session_state.nome_utilizador = "João Amaral"
+if "utilizador_atual" not in st.session_state:
+    st.session_state.utilizador_atual = None
 
-if "escala_dados" not in st.session_state:
-    st.session_state.escala_dados = {}
+# Base de perfis guardados na sessão: { "Nome": {"pin": "1234", "valor_hora": 7.5, ...} }
+if "perfis_guardados" not in st.session_state:
+    st.session_state.perfis_guardados = {
+        "João Amaral": {
+            "pin": "1994",
+            "valor_hora": 7.50,
+            "subs_refeicao": 6.00,
+            "taxa_irs": 13.0,
+            "taxa_ss": 11.0,
+            "escala_dados": {}
+        }
+    }
 
 
-# --- 1. ECRÃ INICIAL DE CRIAÇÃO DE PERFIL ---
-if not st.session_state.perfil_criado:
+# --- 1. ECRÃ DE LOGIN / REGISTO POR PIN ---
+if not st.session_state.autenticado:
     st.markdown("## 🛡️ Gestor de Escala PRO")
-    st.write("Configura o teu perfil para começar.")
+    st.write("Acede à tua conta ou cria um novo perfil.")
     
-    with st.form("form_perfil"):
-        st.markdown("### 👤 Utilizador")
-        nome_input = st.text_input("O teu Nome", value=st.session_state.nome_utilizador)
-        
-        st.markdown("### 💰 Parâmetros Base")
-        c1, c2 = st.columns(2)
-        with c1:
-            valor_hora_init = st.number_input("Valor Hora (€)", value=7.50, step=0.25)
-            taxa_irs_init = st.number_input("IRS (%)", value=13.0, step=0.5)
-        with c2:
-            subs_refeicao_init = st.number_input("Subs. Refeição (€)", value=6.00, step=0.50)
-            taxa_ss_init = st.number_input("Seg. Social (%)", value=11.0, step=0.0)
+    aba_login, aba_registo = st.tabs(["🔑 Entrar", "➕ Criar Novo Perfil"])
+    
+    with aba_login:
+        with st.form("form_login"):
+            nomes_existentes = list(st.session_state.perfis_guardados.keys())
+            if nomes_existentes:
+                nome_escolhido = st.selectbox("Seleciona o teu Nome", options=nomes_existentes)
+            else:
+                nome_escolhido = st.text_input("Nome de Utilizador")
+                
+            pin_input = st.text_input("PIN de Acesso (4 dígitos)", type="password", max_chars=4)
             
-        st.markdown("")
-        btn_entrar = st.form_submit_button("🚀 Entrar na Aplicação", type="primary", use_container_width=True)
-        
-        if btn_entrar:
-            st.session_state.nome_utilizador = nome_input
-            st.session_state.valor_hora = valor_hora_init
-            st.session_state.subs_refeicao = subs_refeicao_init
-            st.session_state.taxa_irs = taxa_irs_init
-            st.session_state.taxa_ss = taxa_ss_init
-            st.session_state.perfil_criado = True
-            st.rerun()
+            btn_login = st.form_submit_button("🔓 Entrar", type="primary", use_container_width=True)
+            
+            if btn_login:
+                if nome_escolhido in st.session_state.perfis_guardados:
+                    perfil = st.session_state.perfis_guardados[nome_escolhido]
+                    if perfil["pin"] == pin_input:
+                        st.session_state.autenticado = True
+                        st.session_state.utilizador_atual = nome_escolhido
+                        st.success("Login efetuado com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("PIN incorreto.")
+                else:
+                    st.error("Utilizador não encontrado.")
+
+    with aba_registo:
+        with st.form("form_registo"):
+            st.markdown("### Criar Nova Conta")
+            novo_nome = st.text_input("Nome do Utilizador")
+            novo_pin = st.text_input("Define um PIN (4 dígitos)", type="password", max_chars=4)
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                reg_v_hora = st.number_input("Valor Hora (€)", value=7.50, step=0.25)
+                reg_irs = st.number_input("IRS (%)", value=13.0, step=0.5)
+            with c2:
+                reg_sub = st.number_input("Subs. Refeição (€)", value=6.00, step=0.50)
+                reg_ss = st.number_input("Seg. Social (%)", value=11.0, step=0.0)
+                
+            btn_criar = st.form_submit_button("✨ Registar e Entrar", use_container_width=True)
+            
+            if btn_criar:
+                if not novo_nome.strip():
+                    st.warning("Por favor, introduz um nome válido.")
+                elif len(novo_pin) != 4 or not novo_pin.isdigit():
+                    st.warning("O PIN deve conter exatamente 4 dígitos numéricos.")
+                elif novo_nome in st.session_state.perfis_guardados:
+                    st.warning("Esse nome já existe. Usa a aba 'Entrar' ou escolhe outro nome.")
+                else:
+                    st.session_state.perfis_guardados[novo_nome] = {
+                        "pin": novo_pin,
+                        "valor_hora": reg_v_hora,
+                        "subs_refeicao": reg_sub,
+                        "taxa_irs": reg_irs,
+                        "taxa_ss": reg_ss,
+                        "escala_dados": {}
+                    }
+                    st.session_state.autenticado = True
+                    st.session_state.utilizador_atual = novo_nome
+                    st.success("Perfil criado com sucesso!")
+                    st.rerun()
 
 else:
-    # --- 2. APLICAÇÃO PRINCIPAL ---
-    v_hora = st.session_state.get("valor_hora", 7.50)
-    s_refeicao = st.session_state.get("subs_refeicao", 6.00)
-    t_irs = st.session_state.get("taxa_irs", 13.0)
-    t_ss = st.session_state.get("taxa_ss", 11.0)
+    # --- 2. APLICAÇÃO PRINCIPAL (Sessão Ativa) ---
+    nome_u = st.session_state.utilizador_atual
+    dados_perfil = st.session_state.perfis_guardados[nome_u]
+
+    v_hora = dados_perfil["valor_hora"]
+    s_refeicao = dados_perfil["subs_refeicao"]
+    t_irs = dados_perfil["taxa_irs"]
+    t_ss = dados_perfil["taxa_ss"]
+    escala_dados = dados_perfil["escala_dados"]
 
     # --- BARRA LATERAL ---
     with st.sidebar:
+        st.markdown(f"### 👤 Utilizador: {nome_u}")
         st.markdown("### ⚙️ Definições")
-        st.session_state.nome_utilizador = st.text_input("Nome", value=st.session_state.nome_utilizador)
         
-        valor_hora = st.number_input("Valor Hora Base (€)", value=v_hora, step=0.25)
-        subs_refeicao = st.number_input("Subs. Refeição (€)", value=s_refeicao, step=0.50)
+        novo_v_hora = st.number_input("Valor Hora Base (€)", value=v_hora, step=0.25)
+        novo_s_refeicao = st.number_input("Subs. Refeição (€)", value=s_refeicao, step=0.50)
         
-        taxa_irs = st.number_input("IRS (%)", value=t_irs, step=0.5)
-        taxa_ss = st.number_input("Segurança Social (%)", value=t_ss, step=0.0)
+        novo_t_irs = st.number_input("IRS (%)", value=t_irs, step=0.5)
+        novo_t_ss = st.number_input("Segurança Social (%)", value=t_ss, step=0.0)
+        
+        # Atualizar dados no dicionário do perfil
+        dados_perfil["valor_hora"] = novo_v_hora
+        dados_perfil["subs_refeicao"] = novo_s_refeicao
+        dados_perfil["taxa_irs"] = novo_t_irs
+        dados_perfil["taxa_ss"] = novo_t_ss
         
         st.markdown("---")
-        if st.button("🔄 Mudar Perfil / Sair", use_container_width=True):
-            st.session_state.perfil_criado = False
+        if st.button("🔒 Bloquear / Sair da Conta", use_container_width=True):
+            st.session_state.autenticado = False
+            st.session_state.utilizador_atual = None
             st.rerun()
 
     # --- CABEÇALHO PRINCIPAL ---
-    st.markdown(f"## 🛡️ Olá, {st.session_state.nome_utilizador}!")
+    st.markdown(f"## 🛡️ Olá, {nome_u}!")
     
     col_ano, col_mes = st.columns(2)
     with col_ano:
@@ -146,20 +206,20 @@ else:
                 })
                 
             df_novo = pd.DataFrame(lista_dias)
-            st.session_state.escala_dados[chave_mes] = df_novo
+            escala_dados[chave_mes] = df_novo
             st.success("Escala gerada com sucesso!")
             st.rerun()
 
         st.markdown("#### Histórico do Mês")
-        if chave_mes in st.session_state.escala_dados:
-            df_atual = st.session_state.escala_dados[chave_mes]
+        if chave_mes in escala_dados:
+            df_atual = escala_dados[chave_mes]
             df_editado = st.data_editor(
                 df_atual,
                 num_rows="fixed",
                 use_container_width=True,
                 key=f"editor_{chave_mes}"
             )
-            st.session_state.escala_dados[chave_mes] = df_editado
+            escala_dados[chave_mes] = df_editado
         else:
             st.info("Clica em 'Gerar Escala Automática' para preencher o mês.")
 
@@ -181,10 +241,10 @@ else:
             dia_fim = st.number_input("Dia de Fim (ou igual ao de início)", min_value=1, max_value=ultimo_dia_mes, value=1)
             
         if st.button("⚡ Aplicar ao Período Selecionado", use_container_width=True):
-            if chave_mes not in st.session_state.escala_dados:
+            if chave_mes not in escala_dados:
                 st.warning("Primeiro deves gerar a escala do mês na aba 'Escala'.")
             else:
-                df_temp = st.session_state.escala_dados[chave_mes]
+                df_temp = escala_dados[chave_mes]
                 
                 if "Noite" in tipo_ajuste:
                     h_val = 8.0
@@ -199,15 +259,15 @@ else:
                         df_temp.at[index, "Estado"] = tipo_ajuste
                         df_temp.at[index, "Horas"] = h_val
                 
-                st.session_state.escala_dados[chave_mes] = df_temp
+                escala_dados[chave_mes] = df_temp
                 st.success(f"Período de {dia_inicio} a {dia_fim} atualizado para '{tipo_ajuste}' com sucesso!")
                 st.rerun()
 
     with tab3:
         st.markdown(f"### 📊 Resumo do Mês ({mes_ativo_pt} {ano_ativo})")
         
-        if chave_mes in st.session_state.escala_dados:
-            df_res = st.session_state.escala_dados[chave_mes]
+        if chave_mes in escala_dados:
+            df_res = escala_dados[chave_mes]
             mask_trab = df_res["Estado"].str.contains("Trabalho", na=False)
             horas_mes = df_res[mask_trab]["Horas"].sum()
             dias_trabalho = len(df_res[mask_trab])
@@ -215,12 +275,12 @@ else:
             horas_mes = 0.0
             dias_trabalho = 0
             
-        salario_base = horas_mes * valor_hora
-        sub_ref_total = dias_trabalho * subs_refeicao
+        salario_base = horas_mes * novo_v_hora
+        sub_ref_total = dias_trabalho * novo_s_refeicao
         total_bruto = salario_base + sub_ref_total
         
-        desconto_irs_val = total_bruto * (t_irs / 100)
-        desconto_ss_val = total_bruto * (t_ss / 100)
+        desconto_irs_val = total_bruto * (novo_t_irs / 100)
+        desconto_ss_val = total_bruto * (novo_t_ss / 100)
         total_liquido = total_bruto - desconto_irs_val - desconto_ss_val
         
         st.metric("Total Líquido Estimado", f"{total_liquido:.2f} €")
@@ -230,7 +290,7 @@ else:
         
         st.markdown("---")
         if st.button("📤 Copiar para WhatsApp", use_container_width=True):
-            resumo_zap = f"Resumo {mes_ativo_pt} {ano_ativo} ({st.session_state.nome_utilizador}):\nTotal Horas: {horas_mes}h\nLíquido: {total_liquido:.2f}€"
+            resumo_zap = f"Resumo {mes_ativo_pt} {ano_ativo} ({nome_u}):\nTotal Horas: {horas_mes}h\nLíquido: {total_liquido:.2f}€"
             st.code(resumo_zap, language="text")
             st.success("Copiado!")
 
@@ -242,7 +302,7 @@ else:
         total_horas_ano = 0.0
         total_liquido_ano = 0.0
         
-        for k, df_m in st.session_state.escala_dados.items():
+        for k, df_m in escala_dados.items():
             partes = k.split("-")
             if len(partes) == 2 and int(partes[0]) == ano_ativo:
                 m_num = int(partes[1])
@@ -253,8 +313,8 @@ else:
                 h_m = df_m[mask_t]["Horas"].sum()
                 d_m = len(df_m[mask_t])
                 
-                b_m = (h_m * valor_hora) + (d_m * subs_refeicao)
-                l_m = b_m - (b_m * (t_irs / 100)) - (b_m * (t_ss / 100))
+                b_m = (h_m * novo_v_hora) + (d_m * novo_s_refeicao)
+                l_m = b_m - (b_m * (novo_t_irs / 100)) - (b_m * (novo_t_ss / 100))
                 
                 total_horas_ano += h_m
                 total_liquido_ano += l_m
@@ -289,4 +349,4 @@ else:
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v3.0 (Local)")
+        st.caption("Gestor de Escala PRO v3.1 (Com PIN Local)")
