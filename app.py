@@ -1,7 +1,9 @@
+import streamlit as span
 import streamlit as st
 import datetime
 import calendar
 import pandas as pd
+from supabase import create_client, Client
 
 # Configuração da página
 st.set_page_config(
@@ -11,7 +13,20 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Dicionário de tradução dos meses para português
+# --- LIGAÇÃO AO SUPABASE ---
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "O_TEU_SUPABASE_URL")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "O_TEU_SUPABASE_KEY")
+
+@st.cache_resource
+def init_supabase():
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        return None
+
+supabase = init_supabase()
+
+# Dicionário de tradução dos meses
 meses_pt = {
     "January": "Janeiro", "February": "Fevereiro", "March": "Março",
     "April": "Abril", "May": "Maio", "June": "Junho",
@@ -27,7 +42,7 @@ meses_num = {
 
 meses_ingles = list(meses_num.keys())
 
-# --- GESTÃO DE ESTADO (SESSION STATE) ---
+# --- GESTÃO DE ESTADO ---
 if "perfil_criado" not in st.session_state:
     st.session_state.perfil_criado = False
 
@@ -38,7 +53,36 @@ if "escala_dados" not in st.session_state:
     st.session_state.escala_dados = {}
 
 
-# --- 1. ECRÃ INICIAL DE CRIAÇÃO DE PERFIL / BOAS-VINDAS ---
+# --- FUNÇÕES DE SUPABASE ---
+def carregar_dados_supabase(utilizador, ano):
+    if not supabase or SUPABASE_URL == "O_TEU_SUPABASE_URL":
+        return
+    try:
+        response = supabase.table("escalas").select("*").eq("utilizador", utilizador).eq("ano", ano).execute()
+        dados = {}
+        for row in response.data:
+            chave = f"{row['ano']}-{row['mes']}"
+            dados[chave] = pd.DataFrame(row['dias_json'])
+        st.session_state.escala_dados = dados
+    except Exception as e:
+        st.error(f"Erro ao carregar do Supabase: {e}")
+
+def guardar_mes_supabase(utilizador, ano, mes, df):
+    if not supabase or SUPABASE_URL == "O_TEU_SUPABASE_URL":
+        return
+    try:
+        dias_json = df.to_dict(orient="records")
+        supabase.table("escalas").upsert({
+            "utilizador": utilizador,
+            "ano": ano,
+            "mes": mes,
+            "dias_json": dias_json
+        }, on_conflict="utilizador,ano,mes").execute()
+    except Exception as e:
+        st.error(f"Erro ao guardar no Supabase: {e}")
+
+
+# --- 1. ECRÃ INICIAL DE CRIAÇÃO DE PERFIL ---
 if not st.session_state.perfil_criado:
     st.markdown("## 🛡️ Gestor de Escala PRO")
     st.write("Configura o teu perfil para começar.")
@@ -66,6 +110,8 @@ if not st.session_state.perfil_criado:
             st.session_state.taxa_irs = taxa_irs_init
             st.session_state.taxa_ss = taxa_ss_init
             st.session_state.perfil_criado = True
+            
+            carregar_dados_supabase(nome_input, 2026)
             st.rerun()
 
 else:
@@ -94,7 +140,6 @@ else:
     # --- CABEÇALHO PRINCIPAL ---
     st.markdown(f"## 🛡️ Olá, {st.session_state.nome_utilizador}!")
     
-    # Seleção de Ano e Mês Ativo
     col_ano, col_mes = st.columns(2)
     with col_ano:
         ano_ativo = st.selectbox("Ano:", options=[2026, 2027, 2028], index=0)
@@ -102,7 +147,7 @@ else:
         mes_ativo_en = st.selectbox(
             "Mês Ativo:", 
             options=meses_ingles, 
-            index=8, # Setembro por defeito
+            index=8, # Setembro
             format_func=lambda x: meses_pt.get(x, x)
         )
 
@@ -111,15 +156,15 @@ else:
 
     st.markdown("---")
 
-    # --- NAVEGAÇÃO POR ABAS (Adicionada a aba de Resumo Anual) ---
-    tab1, tab2, tab3, tab4 = st.tabs(["📅 Escala", "✏️ Ajustes", "📊 Resumo Mês", "📈 Resumo Anual"])
+    # --- NAVEGAÇÃO POR ABAS ---
+    tab1, tab2, tab3, tab4 = st.tabs(["📅 Escala", "✏️ Ajustes & Períodos", "📊 Resumo Mês", "📈 Resumo Anual"])
+
+    chave_mes = f"{ano_ativo}-{num_mes}"
 
     with tab1:
         st.markdown(f"### 🗓️ Escala de {mes_ativo_pt} {ano_ativo}")
         
-        chave_mes = f"{ano_ativo}-{num_mes}"
-        
-        if st.button("🚀 Gerar Escala Automática", type="primary", use_container_width=True):
+        if st.button("🚀 Gerar Escala Automática (Seg/Ter Noite, FDS 12h)", type="primary", use_container_width=True):
             _, ultimo_dia = calendar.monthrange(ano_ativo, num_mes)
             lista_dias = []
             dias_semana_pt = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
@@ -146,7 +191,10 @@ else:
                     "Horas": h
                 })
                 
-            st.session_state.escala_dados[chave_mes] = pd.DataFrame(lista_dias)
+            df_novo = pd.DataFrame(lista_dias)
+            st.session_state.escala_dados[chave_mes] = df_novo
+            guardar_mes_supabase(st.session_state.nome_utilizador, ano_ativo, num_mes, df_novo)
+            
             st.success("Escala gerada com sucesso!")
             st.rerun()
 
@@ -160,26 +208,62 @@ else:
                 key=f"editor_{chave_mes}"
             )
             st.session_state.escala_dados[chave_mes] = df_editado
+            guardar_mes_supabase(st.session_state.nome_utilizador, ano_ativo, num_mes, df_editado)
         else:
             st.info("Clica em 'Gerar Escala Automática' para preencher o mês.")
 
     with tab2:
-        st.markdown("### ✏️ Ajustes Pontuais")
-        dia_ajuste = st.number_input("Dia do Mês", min_value=1, max_value=31, value=1)
-        tipo_ajuste = st.selectbox("Tipo", ["Folga Extra", "Falta Justificada", "Horas Extra", "Férias"])
-        horas_ajuste = st.number_input("Horas", value=0.0, step=0.5)
+        st.markdown("### ✏️ Ajustes Pontuais & Períodos Automáticos")
+        st.write("Aplica alterações rápidas a um dia isolado ou a um intervalo de dias (ex: férias, folgas extra).")
         
-        if st.button("Guardar Ajuste", use_container_width=True):
-            st.success(f"Ajuste para o dia {dia_ajuste} guardado!")
+        tipo_ajuste = st.selectbox(
+            "Tipo de Estado a Aplicar", 
+            ["Folga", "Férias", "Falta Justificada", "Trabalho (Noite) [8h]", "Trabalho (FDS) [12h]"]
+        )
+        
+        col_d1, col_d2 = st.columns(2)
+        _, ultimo_dia_mes = calendar.monthrange(ano_ativo, num_mes)
+        
+        with col_d1:
+            dia_inicio = st.number_input("Dia de Início", min_value=1, max_value=ultimo_dia_mes, value=1)
+        with col_d2:
+            dia_fim = st.number_input("Dia de Fim (ou igual ao de início)", min_value=1, max_value=ultimo_dia_mes, value=1)
+            
+        if st.button("⚡ Aplicar ao Período Selecionado", use_container_width=True):
+            if chave_mes not in st.session_state.escala_dados:
+                st.warning("Primeiro deves gerar a escala do mês na aba 'Escala'.")
+            else:
+                df_temp = st.session_state.escala_dados[chave_mes]
+                
+                # Definir horas padrão conforme o tipo escolhido
+                if "Noite" in tipo_ajuste:
+                    h_val = 8.0
+                elif "FDS" in tipo_ajuste:
+                    h_val = 12.0
+                else:
+                    h_val = 0.0 # Folga, Férias, Falta
+                
+                # Aplicar aos dias selecionados (convertendo índice do dia para o índice do DataFrame)
+                for index, row in df_temp.iterrows():
+                    d_num = int(row["Dia"].split("/")[0])
+                    if dia_inicio <= d_num <= dia_fim:
+                        df_temp.at[index, "Estado"] = tipo_ajuste
+                        df_temp.at[index, "Horas"] = h_val
+                
+                st.session_state.escala_dados[chave_mes] = df_temp
+                guardar_mes_supabase(st.session_state.nome_utilizador, ano_ativo, num_mes, df_temp)
+                st.success(f"Período de {dia_inicio} a {dia_fim} atualizado para '{tipo_ajuste}' com sucesso!")
+                st.rerun()
 
     with tab3:
         st.markdown(f"### 📊 Resumo do Mês ({mes_ativo_pt} {ano_ativo})")
         
-        chave_mes = f"{ano_ativo}-{num_mes}"
         if chave_mes in st.session_state.escala_dados:
             df_res = st.session_state.escala_dados[chave_mes]
-            horas_mes = df_res[df_res["Estado"].str.contains("Trabalho", na=False)]["Horas"].sum()
-            dias_trabalho = len(df_res[df_res["Estado"].str.contains("Trabalho", na=False)])
+            # Considera dias de trabalho tudo o que contenha "Trabalho"
+            mask_trab = df_res["Estado"].str.contains("Trabalho", na=False)
+            horas_mes = df_res[mask_trab]["Horas"].sum()
+            dias_trabalho = len(df_res[mask_trab])
         else:
             horas_mes = 0.0
             dias_trabalho = 0
@@ -205,34 +289,31 @@ else:
 
     with tab4:
         st.markdown(f"### 📈 Resumo Anual Global ({ano_ativo})")
-        st.write("Acumulado de todos os meses gerados para o ano selecionado.")
+        st.write("Acumulado de todos os meses gerados/guardados para o ano selecionado.")
         
-        # Filtrar meses do ano ativo guardados na sessão
         registos_ano = []
         total_horas_ano = 0.0
         total_liquido_ano = 0.0
-        total_bruto_ano = 0.0
         
         for k, df_m in st.session_state.escala_dados.items():
-            # Formato da chave: "ANO-MES" (ex: "2026-9")
             partes = k.split("-")
             if len(partes) == 2 and int(partes[0]) == ano_ativo:
                 m_num = int(partes[1])
-                # Encontrar o nome do mês em português
                 m_nome_pt = [k_pt for k_en, m_n in meses_num.items() if m_n == m_num and (k_pt := meses_pt.get(k_en))]
                 m_nome_pt = m_nome_pt[0] if m_nome_pt else str(m_num)
                 
-                h_m = df_m[df_m["Estado"].str.contains("Trabalho", na=False)]["Horas"].sum()
-                d_m = len(df_m[df_m["Estado"].str.contains("Trabalho", na=False)])
+                mask_t = df_m["Estado"].str.contains("Trabalho", na=False)
+                h_m = df_m[mask_t]["Horas"].sum()
+                d_m = len(df_m[mask_t])
                 
                 b_m = (h_m * valor_hora) + (d_m * subs_refeicao)
                 l_m = b_m - (b_m * (t_irs / 100)) - (b_m * (t_ss / 100))
                 
                 total_horas_ano += h_m
-                total_bruto_ano += b_m
                 total_liquido_ano += l_m
                 
                 registos_ano.append({
+                    "Mês_Num": m_num,
                     "Mês": m_nome_pt,
                     "Horas": h_m,
                     "Dias Trab.": d_m,
@@ -241,15 +322,27 @@ else:
                 })
                 
         if registos_ano:
+            # Ordenar por número do mês
+            registos_ano = sorted(registos_ano, key=lambda x: x["Mês_Num"])
+            
             st.metric("Total Líquido Acumulado no Ano", f"{total_liquido_ano:.2f} €")
             st.metric("Total Horas no Ano", f"{total_horas_ano}h")
             
-            st.markdown("#### Detalhe por Mês")
+            st.markdown("---")
+            st.markdown("#### 📊 Evolução do Valor Líquido por Mês")
+            
+            # Preparar dados para o gráfico de barras
             df_anual = pd.DataFrame(registos_ano)
-            st.dataframe(df_anual, use_container_width=True, hide_index=True)
+            df_grafico = df_anual.set_index("Mês")["Líquido (€)"]
+            st.bar_chart(df_grafico)
+            
+            st.markdown("#### Detalhe por Mês")
+            # Remover a coluna auxiliar Mês_Num antes de mostrar a tabela
+            df_tabela = df_anual.drop(columns=["Mês_Num"])
+            st.dataframe(df_tabela, use_container_width=True, hide_index=True)
         else:
-            st.info(f"Ainda não tens meses gerados para o ano {ano_ativo}. Vai à aba 'Escala' e gera os meses que pretendes consultar.")
+            st.info(f"Ainda não tens meses guardados para o ano {ano_ativo}.")
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v2.7")
+        st.caption("Gestor de Escala PRO v2.9")
