@@ -1,9 +1,7 @@
-import streamlit as span
 import streamlit as st
 import datetime
 import calendar
 import pandas as pd
-from supabase import create_client, Client
 
 # Configuração da página
 st.set_page_config(
@@ -12,19 +10,6 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"
 )
-
-# --- LIGAÇÃO AO SUPABASE ---
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "O_TEU_SUPABASE_URL")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "O_TEU_SUPABASE_KEY")
-
-@st.cache_resource
-def init_supabase():
-    try:
-        return create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        return None
-
-supabase = init_supabase()
 
 # Dicionário de tradução dos meses
 meses_pt = {
@@ -51,35 +36,6 @@ if "nome_utilizador" not in st.session_state:
 
 if "escala_dados" not in st.session_state:
     st.session_state.escala_dados = {}
-
-
-# --- FUNÇÕES DE SUPABASE ---
-def carregar_dados_supabase(utilizador, ano):
-    if not supabase or SUPABASE_URL == "O_TEU_SUPABASE_URL":
-        return
-    try:
-        response = supabase.table("escalas").select("*").eq("utilizador", utilizador).eq("ano", ano).execute()
-        dados = {}
-        for row in response.data:
-            chave = f"{row['ano']}-{row['mes']}"
-            dados[chave] = pd.DataFrame(row['dias_json'])
-        st.session_state.escala_dados = dados
-    except Exception as e:
-        st.error(f"Erro ao carregar do Supabase: {e}")
-
-def guardar_mes_supabase(utilizador, ano, mes, df):
-    if not supabase or SUPABASE_URL == "O_TEU_SUPABASE_URL":
-        return
-    try:
-        dias_json = df.to_dict(orient="records")
-        supabase.table("escalas").upsert({
-            "utilizador": utilizador,
-            "ano": ano,
-            "mes": mes,
-            "dias_json": dias_json
-        }, on_conflict="utilizador,ano,mes").execute()
-    except Exception as e:
-        st.error(f"Erro ao guardar no Supabase: {e}")
 
 
 # --- 1. ECRÃ INICIAL DE CRIAÇÃO DE PERFIL ---
@@ -110,8 +66,6 @@ if not st.session_state.perfil_criado:
             st.session_state.taxa_irs = taxa_irs_init
             st.session_state.taxa_ss = taxa_ss_init
             st.session_state.perfil_criado = True
-            
-            carregar_dados_supabase(nome_input, 2026)
             st.rerun()
 
 else:
@@ -193,8 +147,6 @@ else:
                 
             df_novo = pd.DataFrame(lista_dias)
             st.session_state.escala_dados[chave_mes] = df_novo
-            guardar_mes_supabase(st.session_state.nome_utilizador, ano_ativo, num_mes, df_novo)
-            
             st.success("Escala gerada com sucesso!")
             st.rerun()
 
@@ -208,7 +160,6 @@ else:
                 key=f"editor_{chave_mes}"
             )
             st.session_state.escala_dados[chave_mes] = df_editado
-            guardar_mes_supabase(st.session_state.nome_utilizador, ano_ativo, num_mes, df_editado)
         else:
             st.info("Clica em 'Gerar Escala Automática' para preencher o mês.")
 
@@ -235,15 +186,13 @@ else:
             else:
                 df_temp = st.session_state.escala_dados[chave_mes]
                 
-                # Definir horas padrão conforme o tipo escolhido
                 if "Noite" in tipo_ajuste:
                     h_val = 8.0
                 elif "FDS" in tipo_ajuste:
                     h_val = 12.0
                 else:
-                    h_val = 0.0 # Folga, Férias, Falta
+                    h_val = 0.0
                 
-                # Aplicar aos dias selecionados (convertendo índice do dia para o índice do DataFrame)
                 for index, row in df_temp.iterrows():
                     d_num = int(row["Dia"].split("/")[0])
                     if dia_inicio <= d_num <= dia_fim:
@@ -251,7 +200,6 @@ else:
                         df_temp.at[index, "Horas"] = h_val
                 
                 st.session_state.escala_dados[chave_mes] = df_temp
-                guardar_mes_supabase(st.session_state.nome_utilizador, ano_ativo, num_mes, df_temp)
                 st.success(f"Período de {dia_inicio} a {dia_fim} atualizado para '{tipo_ajuste}' com sucesso!")
                 st.rerun()
 
@@ -260,7 +208,6 @@ else:
         
         if chave_mes in st.session_state.escala_dados:
             df_res = st.session_state.escala_dados[chave_mes]
-            # Considera dias de trabalho tudo o que contenha "Trabalho"
             mask_trab = df_res["Estado"].str.contains("Trabalho", na=False)
             horas_mes = df_res[mask_trab]["Horas"].sum()
             dias_trabalho = len(df_res[mask_trab])
@@ -289,7 +236,7 @@ else:
 
     with tab4:
         st.markdown(f"### 📈 Resumo Anual Global ({ano_ativo})")
-        st.write("Acumulado de todos os meses gerados/guardados para o ano selecionado.")
+        st.write("Acumulado de todos os meses gerados para o ano selecionado.")
         
         registos_ano = []
         total_horas_ano = 0.0
@@ -322,7 +269,6 @@ else:
                 })
                 
         if registos_ano:
-            # Ordenar por número do mês
             registos_ano = sorted(registos_ano, key=lambda x: x["Mês_Num"])
             
             st.metric("Total Líquido Acumulado no Ano", f"{total_liquido_ano:.2f} €")
@@ -331,18 +277,16 @@ else:
             st.markdown("---")
             st.markdown("#### 📊 Evolução do Valor Líquido por Mês")
             
-            # Preparar dados para o gráfico de barras
             df_anual = pd.DataFrame(registos_ano)
             df_grafico = df_anual.set_index("Mês")["Líquido (€)"]
             st.bar_chart(df_grafico)
             
             st.markdown("#### Detalhe por Mês")
-            # Remover a coluna auxiliar Mês_Num antes de mostrar a tabela
             df_tabela = df_anual.drop(columns=["Mês_Num"])
             st.dataframe(df_tabela, use_container_width=True, hide_index=True)
         else:
-            st.info(f"Ainda não tens meses guardados para o ano {ano_ativo}.")
+            st.info(f"Ainda não tens meses gerados para o ano {ano_ativo}.")
 
     with st.sidebar:
         st.markdown("---")
-        st.caption("Gestor de Escala PRO v2.9")
+        st.caption("Gestor de Escala PRO v3.0 (Local)")
